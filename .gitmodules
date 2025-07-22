@@ -1,0 +1,3 @@
+[submodule "backend/sdk/pyorbbecsdk"]
+	path = backend/sdk/pyorbbecsdk
+	url = https://github.com/orbbec/pyorbbecsdk.git
