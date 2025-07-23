@@ -1,6 +1,8 @@
 """
 Gestor de cámaras Orbbec para captura multi-cámara sincronizada
+Solo cámaras reales - Sin simulación
 """
+import os
 import threading
 import time
 import cv2
@@ -9,13 +11,16 @@ from datetime import datetime
 from typing import List, Dict, Optional, Callable
 from dataclasses import dataclass
 
-# Importación condicional del SDK de Orbbec
+# Importación del SDK de Orbbec - OBLIGATORIO
 try:
     from pyorbbecsdk import *
     ORBBEC_AVAILABLE = True
 except ImportError:
-    ORBBEC_AVAILABLE = False
-    print("⚠️  PyOrbbecSDK no disponible - usando simulación")
+    raise ImportError(
+        "PyOrbbecSDK no está disponible. "
+        "Instala el SDK de Orbbec correctamente antes de usar este sistema. "
+        "Ver docs/INSTALACION_SDK.md para instrucciones."
+    )
 
 from ..config.settings import CameraConfig, SystemConfig
 
@@ -29,150 +34,90 @@ class CameraInfo:
     last_frame_time: Optional[datetime] = None
 
 
-class MockCamera:
-    """Cámara simulada para desarrollo sin hardware"""
+class OrbbecCamera:
+    """Controlador para una cámara Orbbec real"""
     
-    def __init__(self, camera_id: int):
+    def __init__(self, device, camera_id: int, config: CameraConfig):
+        self.device = device
         self.camera_id = camera_id
+        self.config = config
+        self.pipeline = None
         self.is_recording = False
-        self.frame_count = 0
+        self.color_profile = None
+        self.recording_thread = None
+        self.video_writer = None
+        self.frames_written = 0
+        self.start_time = None
         
-    def start_recording(self):
-        self.is_recording = True
-        self.frame_count = 0
-        
-    def stop_recording(self):
-        self.is_recording = False
-        
-    def get_frame(self) -> Optional[np.ndarray]:
-        if not self.is_recording:
-            return None
-            
-        # Generar frame simulado con color diferente por cámara
-        colors = [(255, 0, 0), (0, 255, 0), (0, 0, 255), (255, 255, 0), (255, 0, 255)]
-        color = colors[self.camera_id % len(colors)]
-        
-        frame = np.zeros((480, 640, 3), dtype=np.uint8)
-        frame[:] = color
-        
-        # Añadir texto identificativo
-        cv2.putText(frame, f"CAM {self.camera_id}", (50, 50), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
-        cv2.putText(frame, f"Frame: {self.frame_count}", (50, 100), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        cv2.putText(frame, datetime.now().strftime("%H:%M:%S.%f")[:-3], (50, 150), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
-        
-        self.frame_count += 1
-        return frame
-
-
-class CameraManager:
-    """Gestor principal de cámaras Orbbec"""
-    
-    def __init__(self):
-        self.cameras: Dict[int, object] = {}
-        self.camera_configs: Dict[int, CameraConfig] = {}
-        self.recording_threads: Dict[int, threading.Thread] = {}
-        self.recording_active = False
-        self.frame_callbacks: List[Callable] = []
-        
-        # Crear directorios necesarios
-        SystemConfig.ensure_directories()
-        
-    def discover_cameras(self) -> List[CameraInfo]:
-        """Descubrir cámaras Orbbec conectadas"""
-        cameras_found = []
-        
-        if ORBBEC_AVAILABLE:
-            try:
-                # Usar SDK real de Orbbec
-                context = Context()
-                device_list = context.query_device_list()
-                
-                for i in range(device_list.get_count()):
-                    device_info = device_list.get_device_info(i)
-                    camera_info = CameraInfo(
-                        camera_id=i,
-                        serial_number=device_info.get_serial_number(),
-                        is_connected=True
-                    )
-                    cameras_found.append(camera_info)
-                    
-            except Exception as e:
-                print(f"❌ Error descubriendo cámaras reales: {e}")
-                # Fallback a simulación
-                cameras_found = self._create_mock_cameras()
-        else:
-            # Usar cámaras simuladas
-            cameras_found = self._create_mock_cameras()
-            
-        return cameras_found
-    
-    def _create_mock_cameras(self) -> List[CameraInfo]:
-        """Crear cámaras simuladas para desarrollo"""
-        print("🔧 Creando 3 cámaras simuladas para desarrollo")
-        return [
-            CameraInfo(camera_id=i, serial_number=f"MOCK_{i:03d}", is_connected=True)
-            for i in range(3)
-        ]
-    
-    def initialize_camera(self, camera_id: int, config: CameraConfig) -> bool:
-        """Inicializar una cámara específica"""
+    def initialize(self) -> bool:
+        """Inicializar la cámara"""
         try:
-            if ORBBEC_AVAILABLE:
-                # Configurar cámara real
-                pipeline = Pipeline()
-                config_ob = Config()
-                
-                profile_list = pipeline.get_stream_profile_list(OBSensorType.COLOR_SENSOR)
-                color_profile = profile_list.get_video_stream_profile(
-                    config.resolution_width, 0, OBFormat.RGB, config.fps
-                )
-                config_ob.enable_stream(color_profile)
-                pipeline.start(config_ob)
-                
-                self.cameras[camera_id] = pipeline
-                
-            else:
-                # Usar cámara simulada
-                self.cameras[camera_id] = MockCamera(camera_id)
+            self.pipeline = Pipeline(self.device)
+            ob_config = Config()
             
-            self.camera_configs[camera_id] = config
-            print(f"✅ Cámara {camera_id} inicializada correctamente")
+            # Obtener perfil de color
+            profile_list = self.pipeline.get_stream_profile_list(OBSensorType.COLOR_SENSOR)
+            
+            # Intentar usar la resolución configurada
+            self.color_profile = profile_list.get_video_stream_profile(
+                self.config.resolution_width, 
+                self.config.resolution_height, 
+                OBFormat.RGB, 
+                self.config.fps
+            )
+            
+            if not self.color_profile:
+                # Usar perfil por defecto si no encuentra la resolución específica
+                self.color_profile = profile_list.get_default_video_stream_profile()
+                print(f"⚠️ Cámara {self.camera_id}: Usando resolución por defecto: "
+                      f"{self.color_profile.get_width()}x{self.color_profile.get_height()}@{self.color_profile.get_fps()}fps")
+            
+            ob_config.enable_stream(self.color_profile)
+            self.pipeline.start(ob_config)
+            
+            print(f"✅ Cámara {self.camera_id} inicializada correctamente")
             return True
             
         except Exception as e:
-            print(f"❌ Error inicializando cámara {camera_id}: {e}")
+            print(f"❌ Error inicializando cámara {self.camera_id}: {e}")
             return False
     
-    def get_frame(self, camera_id: int) -> Optional[np.ndarray]:
-        """Obtener frame de una cámara específica"""
-        if camera_id not in self.cameras:
+    def start_recording(self) -> bool:
+        """Iniciar modo de grabación (solo marca el estado, no graba archivos)"""
+        if not self.pipeline:
+            print(f"❌ Cámara {self.camera_id}: No inicializada")
+            return False
+            
+        self.is_recording = True
+        print(f"🎥 Cámara {self.camera_id}: Modo grabación activado")
+        return True
+    
+    def stop_recording(self) -> bool:
+        """Detener modo de grabación"""
+        self.is_recording = False
+        print(f"⏹️ Cámara {self.camera_id}: Modo grabación desactivado")
+        return True
+    
+    def get_frame(self) -> Optional[np.ndarray]:
+        """Obtener frame actual de la cámara (para preview)"""
+        if not self.pipeline:
             return None
             
         try:
-            camera = self.cameras[camera_id]
+            # Obtener frames con timeout
+            frames = self.pipeline.wait_for_frames(100)
+            if not frames:
+                return None
+                
+            color_frame = frames.get_color_frame()
+            if not color_frame:
+                return None
             
-            if ORBBEC_AVAILABLE and hasattr(camera, 'wait_for_frames'):
-                # Cámara real
-                frames = camera.wait_for_frames(100)
-                if frames is None:
-                    return None
-                    
-                color_frame = frames.get_color_frame()
-                if color_frame is None:
-                    return None
-                    
-                # Convertir a formato OpenCV
-                return self._frame_to_bgr_image(color_frame)
-                
-            else:
-                # Cámara simulada
-                return camera.get_frame()
-                
+            # Convertir a formato OpenCV (BGR)
+            return self._frame_to_bgr_image(color_frame)
+            
         except Exception as e:
-            print(f"❌ Error obteniendo frame de cámara {camera_id}: {e}")
+            print(f"❌ Error obteniendo frame de cámara {self.camera_id}: {e}")
             return None
     
     def _frame_to_bgr_image(self, frame) -> Optional[np.ndarray]:
@@ -189,7 +134,7 @@ class CameraManager:
             elif color_format == OBFormat.BGR:
                 image = np.reshape(data, (height, width, 3))
             else:
-                print(f"⚠️  Formato no soportado: {color_format}")
+                print(f"⚠️ Formato de color no soportado: {color_format}")
                 return None
                 
             return image
@@ -198,42 +143,153 @@ class CameraManager:
             print(f"❌ Error convirtiendo frame: {e}")
             return None
     
-    def start_recording_all(self) -> bool:
-        """Iniciar grabación en todas las cámaras"""
-        if self.recording_active:
-            print("⚠️  Ya hay una grabación en curso")
-            return False
-            
+    def cleanup(self):
+        """Limpiar recursos de la cámara"""
         try:
-            self.recording_active = True
+            if self.pipeline:
+                self.pipeline.stop()
+                self.pipeline = None
+            print(f"🧹 Cámara {self.camera_id}: Recursos liberados")
+        except Exception as e:
+            print(f"❌ Error limpiando cámara {self.camera_id}: {e}")
+
+
+class CameraManager:
+    """Gestor principal de cámaras Orbbec - Solo cámaras reales"""
+    
+    # Configuración por defecto para cámaras
+    DEFAULT_CAMERA_CONFIG = CameraConfig(
+        camera_id=0,
+        resolution_width=640,
+        resolution_height=480,
+        fps=30,
+        format="RGB"
+    )
+    
+    def __init__(self):
+        self.cameras: Dict[int, OrbbecCamera] = {}
+        self.camera_configs: Dict[int, CameraConfig] = {}
+        self.recording_active = False
+        self.context = None
+        
+        # Crear directorios necesarios
+        SystemConfig.ensure_directories()
+        
+        # Inicializar contexto Orbbec
+        try:
+            self.context = Context()
+            print("🔌 Contexto Orbbec inicializado")
+        except Exception as e:
+            raise RuntimeError(f"Error inicializando contexto Orbbec: {e}")
+    
+    def discover_cameras(self) -> List[CameraInfo]:
+        """Descubrir cámaras Orbbec conectadas"""
+        cameras_found = []
+        
+        try:
+            device_list = self.context.query_devices()
+            device_count = device_list.get_count()
             
-            # Iniciar grabación en cada cámara
-            for camera_id in self.cameras:
-                if ORBBEC_AVAILABLE:
-                    pass  # La grabación se maneja en el bucle principal
+            if device_count == 0:
+                print("❌ No se encontraron cámaras Orbbec conectadas")
+                return cameras_found
+            
+            print(f"🔍 Encontradas {device_count} cámaras Orbbec")
+            
+            for i in range(device_count):
+                try:
+                    device = device_list[i]
+                    device_info = device.get_device_info()
+                    
+                    camera_info = CameraInfo(
+                        camera_id=i,
+                        serial_number=device_info.get_serial_number(),
+                        is_connected=True
+                    )
+                    cameras_found.append(camera_info)
+                    
+                    print(f"📷 Cámara {i}: S/N {device_info.get_serial_number()}")
+                    
+                except Exception as e:
+                    print(f"❌ Error procesando cámara {i}: {e}")
+                    
+        except Exception as e:
+            print(f"❌ Error descubriendo cámaras: {e}")
+            raise RuntimeError(f"Error crítico en descubrimiento de cámaras: {e}")
+        
+        return cameras_found
+    
+    def initialize_camera(self, camera_id: int, config: CameraConfig) -> bool:
+        """Inicializar una cámara específica"""
+        try:
+            device_list = self.context.query_devices()
+            
+            if camera_id >= device_list.get_count():
+                print(f"❌ Cámara {camera_id}: ID fuera de rango")
+                return False
+            
+            device = device_list[camera_id]
+            camera = OrbbecCamera(device, camera_id, config)
+            
+            if camera.initialize():
+                self.cameras[camera_id] = camera
+                self.camera_configs[camera_id] = config
+                return True
+            else:
+                return False
+                
+        except Exception as e:
+            print(f"❌ Error inicializando cámara {camera_id}: {e}")
+            return False
+    
+    def get_frame(self, camera_id: int) -> Optional[np.ndarray]:
+        """Obtener frame de una cámara específica"""
+        if camera_id not in self.cameras:
+            return None
+        
+        return self.cameras[camera_id].get_frame()
+    
+    def start_recording_all(self, session_id: str, patient_id: str) -> bool:
+        """Iniciar modo de grabación en todas las cámaras"""
+        if self.recording_active:
+            print("⚠️ Ya hay una grabación en curso")
+            return False
+        
+        if not self.cameras:
+            print("❌ No hay cámaras inicializadas")
+            return False
+        
+        try:
+            success_count = 0
+            for camera_id, camera in self.cameras.items():
+                if camera.start_recording():
+                    success_count += 1
                 else:
-                    # Cámara simulada
-                    self.cameras[camera_id].start_recording()
+                    print(f"❌ Error iniciando grabación en cámara {camera_id}")
             
-            print(f"🎬 Grabación iniciada en {len(self.cameras)} cámaras")
-            return True
-            
+            if success_count > 0:
+                self.recording_active = True
+                print(f"🎬 Grabación iniciada en {success_count} cámaras")
+                return True
+            else:
+                print("❌ No se pudo iniciar grabación en ninguna cámara")
+                return False
+                
         except Exception as e:
             print(f"❌ Error iniciando grabación: {e}")
-            self.recording_active = False
             return False
     
     def stop_recording_all(self) -> bool:
         """Detener grabación en todas las cámaras"""
+        if not self.recording_active:
+            return True
+        
         try:
+            for camera_id, camera in self.cameras.items():
+                camera.stop_recording()
+            
             self.recording_active = False
-            
-            # Detener grabación en cada cámara
-            for camera_id in self.cameras:
-                if not ORBBEC_AVAILABLE:
-                    self.cameras[camera_id].stop_recording()
-            
-            print("⏹️  Grabación detenida en todas las cámaras")
+            print("⏹️ Grabación detenida en todas las cámaras")
             return True
             
         except Exception as e:
@@ -241,23 +297,24 @@ class CameraManager:
             return False
     
     def cleanup(self):
-        """Limpiar recursos"""
+        """Limpiar todos los recursos"""
         try:
-            self.stop_recording_all()
+            # Detener grabación si está activa
+            if self.recording_active:
+                self.stop_recording_all()
             
-            # Cerrar pipelines de cámaras reales
-            if ORBBEC_AVAILABLE:
-                for camera_id, pipeline in self.cameras.items():
-                    if hasattr(pipeline, 'stop'):
-                        pipeline.stop()
+            # Limpiar cada cámara
+            for camera in self.cameras.values():
+                camera.cleanup()
             
             self.cameras.clear()
             self.camera_configs.clear()
-            print("🧹 Recursos de cámaras liberados")
+            
+            print("🧹 Gestor de cámaras: Recursos liberados")
             
         except Exception as e:
-            print(f"❌ Error en cleanup: {e}")
+            print(f"❌ Error limpiando gestor de cámaras: {e}")
 
 
-# Singleton del gestor de cámaras
+# Instancia global del gestor de cámaras
 camera_manager = CameraManager()

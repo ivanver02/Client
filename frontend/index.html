@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análisis de Marcha</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Análisis de Marcha</h1>
+        </header>
+        
+        <main id="main-content">
+            <div id="status-section">
+                <h2>Estado del Sistema</h2>
+                <p>Cámaras conectadas: <span id="camera-count">...</span></p>
+            </div>
+
+            <div id="session-info">
+                <h2>Información de la Sesión</h2>
+                <div class="input-group">
+                    <label for="patient-id">ID del Paciente</label>
+                    <input type="text" id="patient-id" placeholder="Por defecto: 0">
+                </div>
+                <div class="input-group">
+                    <label for="session-id">Número de Sesión</label>
+                    <input type="number" id="session-id" placeholder="Por defecto: 0">
+                </div>
+            </div>
+
+            <div id="controls" class="controls-section">
+                <button id="start-btn" class="btn btn-primary">Comenzar Grabación</button>
+                <div id="recording-controls" class="hidden">
+                    <p class="recording-status">Grabando...</p>
+                    <button id="cancel-btn" class="btn btn-danger">Cancelar</button>
+                    <button id="process-btn" class="btn btn-secondary">Finalizar y Procesar</button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 - Sistema de Captura Orbbec</p>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

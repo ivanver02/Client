@@ -1,22 +1,23 @@
-# Orbbec Camera System Dependencies
-
-# Web Framework
-flask==2.3.3
-flask-cors==4.0.0
-
-# Video Processing
-opencv-python==4.8.1.78
-numpy==1.24.3
-
-# HTTP Requests
-requests==2.31.0
-
-# Configuration
-python-dotenv==1.0.0
-
-# Logging
-colorlog==6.7.0
-
-# Development
-pytest==7.4.2
-black==23.7.0
+av==15.0.0
+blinker==1.9.0
+certifi==2025.7.14
+charset-normalizer==3.4.2
+click==8.2.1
+colorama==0.4.6
+Flask==3.1.1
+flask-cors==6.0.1
+idna==3.10
+itsdangerous==2.2.0
+Jinja2==3.1.6
+MarkupSafe==3.0.2
+numpy==2.2.6
+opencv-python==4.12.0.88
+pybind11==2.11.0
+pybind11-global==2.11.0
+pygame==2.6.1
+pynput==1.8.1
+pyorbbecsdk @ file:///C:/Users/Juan%20Cantizani/LabCode/Deprecated/pyorbbecsdk
+requests==2.32.4
+six==1.17.0
+urllib3==2.5.0
+Werkzeug==3.1.3

@@ -138,7 +138,10 @@ class VideoProcessor:
         self.patient_id = patient_id
         self.chunk_sequence.clear()
         
-        # Inicializar secuencias para cada cámara
+        # Limpiar directorios de cámaras existentes
+        self._cleanup_camera_directories()
+        
+        # Inicializar secuencias para cada cámara empezando en 0
         for camera_id in camera_manager.cameras:
             self.chunk_sequence[camera_id] = 0
             
@@ -156,12 +159,12 @@ class VideoProcessor:
         try:
             self.recording_active = True
             
-            # Iniciar grabación en cámaras
-            if not camera_manager.start_recording_all():
+            # Iniciar grabación en cámaras (ahora con parámetros)
+            if not camera_manager.start_recording_all(self.session_id, self.patient_id):
                 self.recording_active = False
                 return False
             
-            # Iniciar hilo de grabación
+            # Iniciar hilo de grabación por chunks
             self.recording_thread = threading.Thread(target=self._recording_loop, daemon=True)
             self.recording_thread.start()
             
@@ -233,7 +236,10 @@ class VideoProcessor:
     def _recording_loop(self):
         """Bucle principal de grabación"""
         try:
+            print("🎬 Iniciando bucle de grabación...")
             while self.recording_active:
+                print(f"🔄 Nuevo ciclo de grabación - cámaras disponibles: {list(camera_manager.cameras.keys())}")
+                
                 # Crear nuevos writers si es necesario
                 self._create_new_writers()
                 
@@ -241,6 +247,8 @@ class VideoProcessor:
                 frames_written = {camera_id: 0 for camera_id in camera_manager.cameras}
                 
                 # Grabar durante la duración del chunk
+                print(f"⏱️  Iniciando grabación de chunk de {self.config.chunk_duration_seconds} segundos...")
+                frame_count = 0
                 while (time.time() - start_time) < self.config.chunk_duration_seconds and self.recording_active:
                     # Capturar frames de todas las cámaras (sincronización por software)
                     timestamp = datetime.now()
@@ -250,24 +258,39 @@ class VideoProcessor:
                         if frame is not None and camera_id in self.current_writers:
                             if self.current_writers[camera_id].write_frame(frame):
                                 frames_written[camera_id] += 1
+                        elif frame is None:
+                            if frame_count % 30 == 0:  # Log cada segundo aproximadamente
+                                print(f"⚠️  Cámara {camera_id}: No se pudo obtener frame")
                     
+                    frame_count += 1
                     # Control de velocidad (aproximadamente FPS target)
                     time.sleep(1.0 / 30)  # 30 FPS target
                 
+                elapsed = time.time() - start_time
+                print(f"📊 Chunk completado en {elapsed:.2f}s - Frames escritos por cámara: {frames_written}")
+                
                 # Finalizar chunk actual y crear el siguiente
                 if self.recording_active:
+                    print("💾 Finalizando chunks actuales...")
                     self._finalize_current_chunks()
                     
         except Exception as e:
             print(f"❌ Error en bucle de grabación: {e}")
+            import traceback
+            traceback.print_exc()
         finally:
+            print("🔚 Bucle de grabación terminado")
             self.recording_active = False
     
     def _create_new_writers(self):
         """Crear nuevos writers para el siguiente chunk"""
+        print(f"🎯 Creando writers para cámaras: {list(camera_manager.cameras.keys())}")
+        
         for camera_id in camera_manager.cameras:
             if camera_id not in self.current_writers:
                 output_path = self._generate_chunk_path(camera_id)
+                print(f"📁 Generando archivo para cámara {camera_id}: {output_path}")
+                
                 writer = VideoWriter(camera_id, output_path, self.config)
                 
                 # Obtener un frame para determinar dimensiones
@@ -275,11 +298,17 @@ class VideoProcessor:
                 if frame is not None:
                     height, width = frame.shape[:2]
                     fps = camera_manager.camera_configs.get(camera_id, camera_manager.DEFAULT_CAMERA_CONFIG).fps
+                    print(f"🎥 Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps")
                     
                     if writer.initialize(width, height, fps):
                         self.current_writers[camera_id] = writer
+                        print(f"✅ Writer creado exitosamente para cámara {camera_id}")
                     else:
                         print(f"❌ Error inicializando writer para cámara {camera_id}")
+                else:
+                    print(f"❌ No se pudo obtener frame de prueba para cámara {camera_id}")
+        
+        print(f"📋 Writers activos: {list(self.current_writers.keys())}")
     
     def _finalize_current_chunks(self):
         """Finalizar chunks actuales y enviarlos"""
@@ -321,23 +350,42 @@ class VideoProcessor:
     
     def _generate_chunk_path(self, camera_id: int) -> str:
         """Generar ruta para un nuevo chunk"""
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")[:-3]
-        filename = f"cam{camera_id:02d}_{timestamp}.mp4"
-        return os.path.join(SystemConfig.TEMP_VIDEO_DIR, self.session_id, filename)
+        camera_dir = os.path.join(SystemConfig.TEMP_VIDEO_DIR, f"camera{camera_id}")
+        
+        # Crear directorio de cámara si no existe
+        os.makedirs(camera_dir, exist_ok=True)
+        
+        # Obtener el número de secuencia para esta cámara
+        sequence_number = self.chunk_sequence.get(camera_id, 0)
+        filename = f"{sequence_number}.mp4"
+        
+        return os.path.join(camera_dir, filename)
     
     def _cleanup_session_files(self):
-        """Limpiar archivos de la sesión actual"""
-        if not self.session_id:
-            return
-            
-        session_dir = os.path.join(SystemConfig.TEMP_VIDEO_DIR, self.session_id)
-        if os.path.exists(session_dir):
-            try:
-                import shutil
-                shutil.rmtree(session_dir)
-                print(f"🗑️  Directorio de sesión eliminado: {session_dir}")
-            except Exception as e:
-                print(f"❌ Error eliminando directorio de sesión: {e}")
+        """Limpiar archivos de las cámaras"""
+        try:
+            # Limpiar archivos de cada cámara en lugar de por sesión
+            for camera_id in self.chunk_sequence.keys():
+                camera_dir = os.path.join(SystemConfig.TEMP_VIDEO_DIR, f"camera{camera_id}")
+                if os.path.exists(camera_dir):
+                    import shutil
+                    shutil.rmtree(camera_dir)
+                    print(f"🗑️  Directorio de cámara {camera_id} eliminado: {camera_dir}")
+        except Exception as e:
+            print(f"❌ Error eliminando directorios de cámaras: {e}")
+    
+    def _cleanup_camera_directories(self):
+        """Limpiar todos los directorios de cámaras existentes"""
+        try:
+            import shutil
+            # Buscar y eliminar todos los directorios camera0, camera1, camera2, etc.
+            for i in range(10):  # Máximo 10 cámaras
+                camera_dir = os.path.join(SystemConfig.TEMP_VIDEO_DIR, f"camera{i}")
+                if os.path.exists(camera_dir):
+                    shutil.rmtree(camera_dir)
+                    print(f"🗑️  Directorio existente eliminado: camera{i}")
+        except Exception as e:
+            print(f"❌ Error limpiando directorios de cámaras: {e}")
     
     def add_upload_callback(self, callback: Callable[[VideoChunk], None]):
         """Añadir callback para cuando se genere un chunk"""

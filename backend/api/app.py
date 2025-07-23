@@ -3,7 +3,7 @@ API Flask para control del sistema de cámaras Orbbec
 """
 import os
 import requests
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
 from typing import Dict, Any
@@ -15,12 +15,26 @@ from ..config.settings import SystemConfig
 
 def create_app() -> Flask:
     """Factory para crear la aplicación Flask"""
-    app = Flask(__name__)
+    # Ajustar la ruta para que apunte a la carpeta 'frontend' en el directorio raíz
+    frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend'))
+    app = Flask(__name__, static_folder=frontend_dir)
     CORS(app)  # Permitir requests desde el frontend
     
     # Configuración
     app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max
     
+    # === RUTAS PARA SERVIR EL FRONTEND ===
+    
+    @app.route('/')
+    def index():
+        """Servir el archivo principal del frontend"""
+        return send_from_directory(app.static_folder, 'index.html')
+
+    @app.route('/<path:path>')
+    def serve_static(path):
+        """Servir otros archivos estáticos (JS, CSS, etc.)"""
+        return send_from_directory(app.static_folder, path)
+
     # Callback para envío de chunks al servidor
     def upload_chunk_to_server(chunk: VideoChunk):
         """Enviar chunk al servidor de procesamiento"""
@@ -157,29 +171,56 @@ def create_app() -> Flask:
     
     @app.route('/api/recording/start', methods=['POST'])
     def start_recording():
-        """Iniciar grabación"""
+        """Iniciar grabación (con descubrimiento e inicialización automática)"""
         try:
             data = request.get_json() or {}
             patient_id = data.get('patient_id', f'patient_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
             
-            # Verificar que hay cámaras inicializadas
+            # 1. Si no hay cámaras inicializadas, hacer descubrimiento e inicialización automática
             if not camera_manager.cameras:
-                return jsonify({
-                    'success': False,
-                    'error': 'No hay cámaras inicializadas. Llamar /api/cameras/initialize primero'
-                }), 400
+                print("🔍 No hay cámaras inicializadas. Iniciando descubrimiento automático...")
+                
+                # Descubrir cámaras
+                discovered_cameras = camera_manager.discover_cameras()
+                if not discovered_cameras:
+                    return jsonify({
+                        'success': False,
+                        'error': 'No se encontraron cámaras Orbbec conectadas'
+                    }), 400
+                
+                # Inicializar todas las cámaras encontradas
+                initialized_count = 0
+                for camera_info in discovered_cameras:
+                    config = camera_manager.DEFAULT_CAMERA_CONFIG
+                    config.camera_id = camera_info.camera_id
+                    
+                    if camera_manager.initialize_camera(camera_info.camera_id, config):
+                        initialized_count += 1
+                        print(f"✅ Cámara {camera_info.camera_id} inicializada automáticamente")
+                    else:
+                        print(f"❌ Error inicializando cámara {camera_info.camera_id}")
+                
+                if initialized_count == 0:
+                    return jsonify({
+                        'success': False,
+                        'error': 'No se pudo inicializar ninguna cámara'
+                    }), 400
+                
+                print(f"🎯 {initialized_count} cámaras inicializadas automáticamente")
             
-            # Iniciar sesión
+            # 2. Iniciar sesión
             session_id = video_processor.start_session(patient_id)
             
-            # Iniciar grabación
+            # 3. Iniciar grabación
             if video_processor.start_recording():
                 return jsonify({
                     'success': True,
                     'session_id': session_id,
                     'patient_id': patient_id,
                     'cameras_recording': list(camera_manager.cameras.keys()),
-                    'chunk_duration_seconds': SystemConfig.RECORDING.chunk_duration_seconds
+                    'cameras_initialized': len(camera_manager.cameras),
+                    'chunk_duration_seconds': SystemConfig.RECORDING.chunk_duration_seconds,
+                    'auto_initialized': len(camera_manager.cameras) > 0
                 })
             else:
                 return jsonify({
@@ -213,7 +254,7 @@ def create_app() -> Flask:
             return jsonify({
                 'success': True,
                 'session_id': video_processor.session_id,
-                'final_chunks': len(final_chunks),
+                'final_chunks_count': len(final_chunks),
                 'message': 'Grabación finalizada correctamente'
             })
             
