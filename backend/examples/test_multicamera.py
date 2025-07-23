@@ -174,16 +174,18 @@ class OrbbecCameraRecorder:
         filename = f"{self.chunk_number}.mp4"
         filepath = os.path.join(self.output_dir, filename)
         
+        # Usar FPS más bajo para video en tiempo real natural
+        real_fps = 15  # FPS para reproducción natural
         fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         self.current_writer = cv2.VideoWriter(
-            filepath, fourcc, FPS, RESOLUTION
+            filepath, fourcc, real_fps, RESOLUTION
         )
         
         if not self.current_writer.isOpened():
             print(f"❌ Error creando video writer para cámara {self.camera_id}")
             return False
             
-        print(f"📹 Cámara {self.camera_id}: Iniciando chunk {self.chunk_number}")
+        print(f"📹 Cámara {self.camera_id}: Iniciando chunk {self.chunk_number} ({real_fps} FPS para reproducción natural)")
         return True
     
     def write_frame(self, frame):
@@ -234,20 +236,30 @@ class OrbbecCameraRecorder:
                 
                 start_time = time.time()
                 frames_written = 0
+                target_frames = 75  # 15 FPS * 5 segundos = 75 frames para tiempo real
                 
-                # Grabar durante CHUNK_DURATION segundos
-                while (time.time() - start_time) < CHUNK_DURATION and self.recording:
+                # Grabar exactamente el número de frames objetivo
+                for frame_num in range(target_frames):
+                    if not self.recording:
+                        break
+                    
+                    # Calcular el momento exacto para este frame
+                    expected_time = start_time + (frame_num * (1.0 / 15))  # 15 FPS real
+                    current_time = time.time()
+                    
+                    # Esperar hasta el momento correcto
+                    if current_time < expected_time:
+                        time.sleep(expected_time - current_time)
+                    
                     frame = self.get_frame()
                     if frame is not None:
                         if self.write_frame(frame):
                             frames_written += 1
-                    
-                    # Control de velocidad
-                    time.sleep(1.0 / FPS)
                 
                 # Finalizar chunk
+                actual_duration = time.time() - start_time
                 self.finalize_chunk()
-                print(f"📊 Cámara {self.camera_id}: {frames_written} frames en chunk {self.chunk_number-1}")
+                print(f"📊 Cámara {self.camera_id}: {frames_written} frames en {actual_duration:.2f}s (chunk {self.chunk_number-1})")
                 
         except Exception as e:
             print(f"❌ Error en grabación de cámara {self.camera_id}: {e}")
