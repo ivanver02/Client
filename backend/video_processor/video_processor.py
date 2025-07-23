@@ -168,7 +168,7 @@ class VideoProcessor:
             self.recording_thread = threading.Thread(target=self._recording_loop, daemon=True)
             self.recording_thread.start()
             
-            print(f"🎥 Grabación iniciada para sesión: {self.session_id}")
+            print(f"🎥 Grabación iniciada para sesión: {self.session_id}", flush=True)
             return True
             
         except Exception as e:
@@ -236,7 +236,7 @@ class VideoProcessor:
     def _recording_loop(self):
         """Bucle principal de grabación"""
         try:
-            print("🎬 Iniciando bucle de grabación...")
+            print("🎬 Iniciando bucle de grabación...", flush=True)
             while self.recording_active:
                 print(f"🔄 Nuevo ciclo de grabación - cámaras disponibles: {list(camera_manager.cameras.keys())}")
                 
@@ -251,7 +251,6 @@ class VideoProcessor:
                 frame_count = 0
                 while (time.time() - start_time) < self.config.chunk_duration_seconds and self.recording_active:
                     # Capturar frames de todas las cámaras (sincronización por software)
-                    timestamp = datetime.now()
                     
                     for camera_id in camera_manager.cameras:
                         frame = camera_manager.get_frame(camera_id)
@@ -263,8 +262,7 @@ class VideoProcessor:
                                 print(f"⚠️  Cámara {camera_id}: No se pudo obtener frame")
                     
                     frame_count += 1
-                    # Control de velocidad (aproximadamente FPS target)
-                    time.sleep(1.0 / 30)  # 30 FPS target
+                    # Sin time.sleep artificial - dejamos que las cámaras dicten su velocidad natural
                 
                 elapsed = time.time() - start_time
                 print(f"📊 Chunk completado en {elapsed:.2f}s - Frames escritos por cámara: {frames_written}")
@@ -273,6 +271,9 @@ class VideoProcessor:
                 if self.recording_active:
                     print("💾 Finalizando chunks actuales...")
                     self._finalize_current_chunks()
+                    print(f"🔄 Estado después de finalizar - chunk_sequence: {self.chunk_sequence}")
+                else:
+                    print("⏹️  Grabación detenida, no se creará siguiente chunk")
                     
         except Exception as e:
             print(f"❌ Error en bucle de grabación: {e}")
@@ -297,8 +298,9 @@ class VideoProcessor:
                 frame = camera_manager.get_frame(camera_id)
                 if frame is not None:
                     height, width = frame.shape[:2]
-                    fps = camera_manager.camera_configs.get(camera_id, camera_manager.DEFAULT_CAMERA_CONFIG).fps
-                    print(f"🎥 Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps")
+                    # Obtener FPS real de la cámara
+                    fps = camera_manager.cameras[camera_id].get_real_fps()
+                    print(f"🎥 Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps (FPS real)")
                     
                     if writer.initialize(width, height, fps):
                         self.current_writers[camera_id] = writer
@@ -332,6 +334,7 @@ class VideoProcessor:
             chunk.session_id = self.session_id
             chunk.patient_id = self.patient_id
             chunk.sequence_number = self.chunk_sequence[camera_id]
+            # Incrementar DESPUÉS de asignar el número al chunk
             self.chunk_sequence[camera_id] += 1
         
         return chunk
@@ -356,8 +359,14 @@ class VideoProcessor:
         os.makedirs(camera_dir, exist_ok=True)
         
         # Obtener el número de secuencia para esta cámara
-        sequence_number = self.chunk_sequence.get(camera_id, 0)
+        # Asegurar que la cámara tenga una entrada en chunk_sequence
+        if camera_id not in self.chunk_sequence:
+            self.chunk_sequence[camera_id] = 0
+        
+        sequence_number = self.chunk_sequence[camera_id]
         filename = f"{sequence_number}.mp4"
+        
+        print(f"📝 Generando chunk para cámara {camera_id}: secuencia {sequence_number} → {filename}")
         
         return os.path.join(camera_dir, filename)
     

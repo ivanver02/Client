@@ -120,6 +120,12 @@ class OrbbecCamera:
             print(f"❌ Error obteniendo frame de cámara {self.camera_id}: {e}")
             return None
     
+    def get_real_fps(self) -> int:
+        """Obtener el FPS real del perfil de la cámara"""
+        if self.color_profile:
+            return self.color_profile.get_fps()
+        return 30  # FPS por defecto
+    
     def _frame_to_bgr_image(self, frame) -> Optional[np.ndarray]:
         """Convertir frame de Orbbec a imagen BGR para OpenCV"""
         try:

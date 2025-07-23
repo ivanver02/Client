@@ -1,12 +1,25 @@
 document.addEventListener('DOMContentLoaded', () => {
-    // --- Elementos del DOM ---
-    const cameraCountSpan = document.getElementById('camera-count');
-    const startBtn = document.getElementById('start-btn');
-    const cancelBtn = document.getElementById('cancel-btn');
-    const processBtn = document.getElementById('process-btn');
-    const recordingControls = document.getElementById('recording-controls');
-    const patientIdInput = document.getElementById('patient-id');
-    const sessionIdInput = document.getElementById('session-id');
+    try {
+        console.log('🚀 DOM Content Loaded - Script iniciando...');
+        
+        // --- Elementos del DOM ---
+        const cameraCountSpan = document.getElementById('camera-count');
+        const startBtn = document.getElementById('start-btn');
+        const cancelBtn = document.getElementById('cancel-btn');
+        const processBtn = document.getElementById('process-btn');
+        const recordingControls = document.getElementById('recording-controls');
+        const patientIdInput = document.getElementById('patient-id');
+        const sessionIdInput = document.getElementById('session-id');
+        
+        // Verificar que todos los elementos existan
+        console.log('🔍 Verificando elementos del DOM:');
+        console.log('  - cameraCountSpan:', cameraCountSpan);
+        console.log('  - startBtn:', startBtn);
+        console.log('  - cancelBtn:', cancelBtn);
+        console.log('  - processBtn:', processBtn);
+        console.log('  - recordingControls:', recordingControls);
+        console.log('  - patientIdInput:', patientIdInput);
+        console.log('  - sessionIdInput:', sessionIdInput);
 
     // --- Estado de la aplicación ---
     let state = {
@@ -51,29 +64,40 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function initializeSystem() {
         try {
+            console.log('🔧 Iniciando initializeSystem...');
             showMessage('Inicializando sistema...');
             
             // 1. Verificar salud del sistema
+            console.log('🏥 Verificando salud del sistema...');
             const healthResponse = await fetch(API.health);
+            console.log('🏥 Health response status:', healthResponse.status);
+            
             if (!healthResponse.ok) {
                 throw new Error('Backend no disponible');
             }
             
             // 2. Descubrir cámaras
+            console.log('🔍 Descubriendo cámaras...');
             const camerasResponse = await fetch(API.discoverCameras);
+            console.log('🔍 Cameras response status:', camerasResponse.status);
+            
             if (!camerasResponse.ok) {
                 throw new Error('Error al descubrir cámaras');
             }
             
             const camerasData = await camerasResponse.json();
+            console.log('🔍 Cameras data:', camerasData);
+            
             if (!camerasData.success) {
                 throw new Error(camerasData.error || 'Error desconocido al descubrir cámaras');
             }
             
             state.cameras = camerasData.total_cameras;
+            console.log('📊 Total cámaras detectadas:', state.cameras);
             
             // 3. Inicializar cámaras automáticamente si las hay
             if (state.cameras > 0) {
+                console.log('⚙️ Inicializando cámaras...');
                 const initResponse = await fetch(API.initializeCameras, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -92,6 +116,7 @@ document.addEventListener('DOMContentLoaded', () => {
             updateCameraStatus();
             
         } catch (error) {
+            console.error('❌ Error en initializeSystem:', error);
             showMessage(`Error al inicializar: ${error.message}`, 'error');
             cameraCountSpan.textContent = "Error de conexión";
             startBtn.disabled = true;
@@ -116,8 +141,11 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function handleStartRecording() {
         try {
+            console.log('🎬 Iniciando proceso de grabación...');
+            
             // Validar datos
             const patientId = patientIdInput.value.trim() || `patient_${new Date().toISOString().split('T')[0]}`;
+            console.log('📝 Patient ID:', patientId);
             
             showMessage(`Iniciando grabación para paciente: ${patientId}`);
             
@@ -125,18 +153,25 @@ document.addEventListener('DOMContentLoaded', () => {
             startBtn.disabled = true;
             startBtn.textContent = "Iniciando...";
             
+            console.log('📡 Enviando request a:', API.startRecording);
             const response = await fetch(API.startRecording, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ patient_id: patientId })
             });
             
+            console.log('📥 Response status:', response.status);
+            console.log('📥 Response OK:', response.ok);
+            
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
+                console.error('❌ Error del servidor:', errorData);
                 throw new Error(errorData.error || `Error del servidor: ${response.status}`);
             }
             
             const data = await response.json();
+            console.log('📊 Response data:', data);
+            
             if (!data.success) {
                 throw new Error(data.error || 'El backend no pudo iniciar la grabación');
             }
@@ -150,9 +185,11 @@ document.addEventListener('DOMContentLoaded', () => {
             toggleRecordingControls(true);
             
         } catch (error) {
+            console.error('❌ Error en handleStartRecording:', error);
             showMessage(`Error al iniciar grabación: ${error.message}`, 'error');
             alert(`No se pudo iniciar la grabación: ${error.message}`);
         } finally {
+            console.log('🔄 Limpiando estado del botón...');
             startBtn.disabled = state.cameras === 0;
             startBtn.textContent = "Comenzar Grabación";
         }
@@ -244,9 +281,37 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // --- Event Listeners ---
-    startBtn.addEventListener('click', handleStartRecording);
-    cancelBtn.addEventListener('click', handleCancelRecording);
-    processBtn.addEventListener('click', handleProcessRecording);
+    console.log('🔗 Configurando event listeners...');
+    
+    if (startBtn) {
+        startBtn.addEventListener('click', () => {
+            console.log('🔘 Click en botón de inicio detectado');
+            handleStartRecording();
+        });
+        
+        // Test adicional - listener directo
+        startBtn.addEventListener('click', () => {
+            console.log('🔘 [TEST] Click detectado en startBtn');
+        });
+        
+        console.log('✅ Event listener del botón de inicio configurado');
+    } else {
+        console.error('❌ No se encontró el botón de inicio (start-btn)');
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', handleCancelRecording);
+        console.log('✅ Event listener del botón de cancelar configurado');
+    } else {
+        console.error('❌ No se encontró el botón de cancelar (cancel-btn)');
+    }
+    
+    if (processBtn) {
+        processBtn.addEventListener('click', handleProcessRecording);
+        console.log('✅ Event listener del botón de procesar configurado');
+    } else {
+        console.error('❌ No se encontró el botón de procesar (process-btn)');
+    }
 
     // --- Inicialización ---
     showMessage('Cargando aplicación...');
@@ -258,4 +323,9 @@ document.addEventListener('DOMContentLoaded', () => {
             initializeSystem();
         }
     }, 30000);
+    
+    } catch (error) {
+        console.error('❌ Error crítico en el script:', error);
+        alert('Error crítico en la aplicación. Revisa la consola para más detalles.');
+    }
 });
