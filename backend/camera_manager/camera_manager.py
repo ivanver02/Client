@@ -101,23 +101,36 @@ class OrbbecCamera:
     def get_frame(self) -> Optional[np.ndarray]:
         """Obtener frame actual de la cámara (para preview)"""
         if not self.pipeline:
+            print(f"❌ Cámara {self.camera_id}: Pipeline no inicializado")
             return None
             
         try:
-            # Obtener frames con timeout
-            frames = self.pipeline.wait_for_frames(100)
+            print(f"🔍 Cámara {self.camera_id}: Intentando obtener frames...")
+            # Obtener frames con timeout más largo
+            frames = self.pipeline.wait_for_frames(1000)  # Aumentar timeout
             if not frames:
+                print(f"❌ Cámara {self.camera_id}: wait_for_frames devolvió None")
                 return None
                 
+            print(f"✅ Cámara {self.camera_id}: Frames obtenidos, buscando color frame...")
             color_frame = frames.get_color_frame()
             if not color_frame:
+                print(f"❌ Cámara {self.camera_id}: No se pudo obtener color frame")
                 return None
             
+            print(f"✅ Cámara {self.camera_id}: Color frame obtenido, convirtiendo...")
             # Convertir a formato OpenCV (BGR)
-            return self._frame_to_bgr_image(color_frame)
+            result = self._frame_to_bgr_image(color_frame)
+            if result is not None:
+                print(f"✅ Cámara {self.camera_id}: Frame convertido exitosamente")
+            else:
+                print(f"❌ Cámara {self.camera_id}: Error en conversión de frame")
+            return result
             
         except Exception as e:
             print(f"❌ Error obteniendo frame de cámara {self.camera_id}: {e}")
+            import traceback
+            traceback.print_exc()
             return None
     
     def get_real_fps(self) -> int:
