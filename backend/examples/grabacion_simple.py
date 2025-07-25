@@ -1,11 +1,7 @@
 #!/usr/bin/env python3
 """
 Script simple para grabación continua multi-cámara con Orbbec SDK.
-
-Funcionalidad:
-- Detecta todas las cámaras Orbbec conectadas.
-- Inicia la grabación de video para cada cámara al ejecutar el script.
-- Guarda la grabación en C:/Users/Juan Cantizani/Code/backend/examples/output/cameraX/completo.mp4
+- Inicia grabación en todas las cámaras conectadas.
 - Se detiene al presionar 'q' en la ventana de preview o con Ctrl+C.
 """
 import os
@@ -29,9 +25,9 @@ OUTPUT_BASE_DIR = os.path.join(os.path.dirname(__file__), 'output')
 # --- Inicialización del SDK ---
 try:
     from pyorbbecsdk import *
-    print("✅ SDK de Orbbec importado correctamente.")
+    print("SDK de Orbbec importado correctamente.")
 except ImportError:
-    print("❌ Error: No se pudo importar 'pyorbbecsdk'.")
+    print("Error: No se pudo importar 'pyorbbecsdk'.")
     print(f"   Asegúrate de que la ruta del SDK es correcta: {SDK_PATH}")
     sys.exit(1)
 
@@ -78,7 +74,7 @@ class OrbbecRecorder:
             self.video_writer = cv2.VideoWriter(self.output_path, fourcc, float(color_profile.get_fps()), RESOLUTION)
 
             if not self.video_writer.isOpened():
-                print(f"❌ Error: No se pudo abrir el VideoWriter para la cámara {self.camera_id}")
+                print(f"Error: No se pudo abrir el VideoWriter para la cámara {self.camera_id}")
                 return False
 
             # 3. Iniciar el hilo de grabación
@@ -88,11 +84,11 @@ class OrbbecRecorder:
             self.recording_thread.start()
             
             device_info = self.device.get_device_info()
-            print(f"✅ Cámara {self.camera_id} ({device_info.get_serial_number()}) grabando en '{self.output_path}'")
+            print(f"Cámara {self.camera_id} ({device_info.get_serial_number()}) grabando en '{self.output_path}'")
             return True
 
         except Exception as e:
-            print(f"❌ Error iniciando la cámara {self.camera_id}: {e}")
+            print(f"Error iniciando la cámara {self.camera_id}: {e}")
             return False
 
     def _record_loop(self):
@@ -140,7 +136,7 @@ class OrbbecRecorder:
 
         duration = time.time() - self.start_time
         avg_fps = self.frames_written / duration if duration > 0 else 0
-        print(f"⏹️ Cámara {self.camera_id}: Grabación detenida. {self.frames_written} frames guardados en {duration:.2f}s (Avg FPS: {avg_fps:.2f}).")
+        print(f"Cámara {self.camera_id}: Grabación detenida. {self.frames_written} frames guardados en {duration:.2f}s (Avg FPS: {avg_fps:.2f}).")
 
 
 def main():
@@ -153,11 +149,11 @@ def main():
         device_list = ctx.query_devices()
         num_devices = device_list.get_count()
         if num_devices == 0:
-            print("❌ No se encontraron cámaras Orbbec. Conecta las cámaras y vuelve a intentarlo.")
+            print("No se encontraron cámaras Orbbec. Conecta las cámaras y vuelve a intentarlo.")
             return
-        print(f"🔍 Se encontraron {num_devices} cámaras.")
+        print(f"Se encontraron {num_devices} cámaras.")
     except Exception as e:
-        print(f"❌ Error al inicializar el contexto o buscar dispositivos: {e}")
+        print(f"Error al inicializar el contexto o buscar dispositivos: {e}")
         return
 
     # 2. Crear e iniciar un grabador para cada cámara
@@ -169,12 +165,8 @@ def main():
             recorders.append(recorder)
 
     if not recorders:
-        print("❌ No se pudo iniciar la grabación en ninguna cámara.")
+        print("No se pudo iniciar la grabación en ninguna cámara.")
         return
-
-    # 3. Mostrar una ventana de preview y esperar la señal de parada
-    print("\n--- La grabación ha comenzado. Presiona 'q' en la ventana para detener. ---")
-    # cv2.namedWindow("Preview Cámara 0", cv2.WINDOW_NORMAL)
     
     try:
         while True:
@@ -194,16 +186,16 @@ def main():
                 break
 
     except KeyboardInterrupt:
-        print("\nCtrl+C presionado. Deteniendo grabación...")
+        print("\n Ctrl+C presionado. Deteniendo grabación...")
     
     finally:
-        # 4. Detener todos los grabadores
-        print("\nDeteniendo todas las cámaras...")
+        # 3. Detener todos los grabadores
+        print("\n Deteniendo todas las cámaras...")
         for recorder in recorders:
             recorder.stop()
         
         cv2.destroyAllWindows()
-        print("\n✅ Proceso finalizado. Los videos se han guardado en:")
+        print("\n Proceso finalizado. Los videos se han guardado en:")
         for recorder in recorders:
             file_size = os.path.getsize(recorder.output_path) / (1024*1024) if os.path.exists(recorder.output_path) else 0
             print(f"  - {recorder.output_path} ({file_size:.2f} MB)")

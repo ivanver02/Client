@@ -1,7 +1,3 @@
-#!/usr/bin/env python3
-"""
-Script principal para ejecutar el sistema de cámaras Orbbec
-"""
 import sys
 import os
 
@@ -12,18 +8,14 @@ from backend.api import run_server
 
 
 def main():
-    """Función principal"""
-    try:
-        print("🎬 Sistema de Cámaras Orbbec - Iniciando...")
-        print("=" * 50)
-        
+    try:        
         # Ejecutar servidor
         run_server()
         
     except KeyboardInterrupt:
-        print("\n⏹️  Sistema detenido por el usuario")
+        print("\n Sistema detenido por el usuario")
     except Exception as e:
-        print(f"❌ Error fatal: {e}")
+        print(f"Error fatal: {e}")
         sys.exit(1)
 
 

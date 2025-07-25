@@ -205,11 +205,11 @@ Cada chunk incluye:
 - `duration_seconds`: Duración real del chunk
 - `file_size_bytes`: Tamaño del archivo
 
-### Logs
+### ogs
 
-Los logs se guardan automáticamente en el directorio `logs/`.
+os logs se guardan automáticamente en el directorio `logs/`.
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Cámaras no detectadas
 
@@ -257,9 +257,9 @@ curl http://your-server:8000/api/health
 - 🔄 Frontend web (en desarrollo)
 - 🔄 Sincronización por hardware (futuro)
 
-## 📞 Soporte y Troubleshooting
+##  Soporte y Troubleshooting
 
-### ❌ Problemas Comunes
+###  Problemas Comunes
 
 #### Error: "DLL load failed while importing pyorbbecsdk"
 **Solución**: Las DLLs no están copiadas correctamente.
@@ -279,11 +279,11 @@ copy lib\win_x64\extensions\**\*.dll . -Recurse -Force
 #### "Receive rtp packet timed out"
 **Es normal**: Estos mensajes no afectan la funcionalidad de las cámaras Orbbec Gemini 335L.
 
-### 📚 Documentación Detallada
+###  Documentación Detallada
 
-👉 **[Guía completa de instalación del SDK](docs/INSTALACION_SDK.md)**
+ **[Guía completa de instalación del SDK](docs/INSTALACION_SDK.md)**
 
-### 🔍 Diagnóstico
+### Diagnóstico
 
 Para problemas técnicos, consultar:
 1. Logs en `logs/`

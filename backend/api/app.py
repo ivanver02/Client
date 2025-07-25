@@ -1,6 +1,3 @@
-"""
-API Flask para control del sistema de cámaras Orbbec
-"""
 import os
 import requests
 from flask import Flask, request, jsonify, send_from_directory
@@ -14,7 +11,6 @@ from ..config.settings import SystemConfig
 
 
 def create_app() -> Flask:
-    """Factory para crear la aplicación Flask"""
     # Ajustar la ruta para que apunte a la carpeta 'frontend' en el directorio raíz
     frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend'))
     app = Flask(__name__, static_folder=frontend_dir)
@@ -23,8 +19,7 @@ def create_app() -> Flask:
     # Configuración
     app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max
     
-    # === RUTAS PARA SERVIR EL FRONTEND ===
-    
+    # RUTAS PARA SERVIR EL FRONTEND
     @app.route('/')
     def index():
         """Servir el archivo principal del frontend"""
@@ -39,7 +34,7 @@ def create_app() -> Flask:
     def upload_chunk_to_server(chunk: VideoChunk):
         """Enviar chunk al servidor de procesamiento"""
         try:
-            url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.upload_endpoint}"
+            url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.upload_endpoint}" 
             
             # Preparar datos del chunk
             files = {
@@ -60,17 +55,17 @@ def create_app() -> Flask:
             response = requests.post(url, files=files, data=data, timeout=30)
             
             if response.status_code == 200:
-                print(f"✅ Chunk enviado exitosamente: {chunk.chunk_id}")
+                print(f"Chunk enviado exitosamente: {chunk.chunk_id}")
                 # Eliminar archivo local después del envío exitoso
                 try:
                     os.remove(chunk.file_path)
                 except Exception as e:
-                    print(f"⚠️  Error eliminando archivo local: {e}")
+                    print(f"Error eliminando archivo local: {e}")
             else:
-                print(f"❌ Error enviando chunk: {response.status_code} - {response.text}")
+                print(f"Error enviando chunk: {response.status_code} - {response.text}")
                 
         except Exception as e:
-            print(f"❌ Error en upload_chunk_to_server: {e}")
+            print(f"Error en upload_chunk_to_server: {e}")
         finally:
             # Cerrar archivo
             try:
@@ -81,11 +76,11 @@ def create_app() -> Flask:
     # Registrar callback
     video_processor.add_upload_callback(upload_chunk_to_server)
     
-    # === ENDPOINTS DE CÁMARAS ===
+    # ENDPOINTS DE CÁMARAS
     
     @app.route('/api/cameras/discover', methods=['GET'])
     def discover_cameras():
-        """Descubrir cámaras conectadas"""
+        """Dice cuántas cámaras hay conectadas"""
         try:
             cameras = camera_manager.discover_cameras()
             return jsonify({
@@ -122,7 +117,7 @@ def create_app() -> Flask:
             errors = []
             
             for camera_id in camera_ids:
-                config = SystemConfig.DEFAULT_CAMERA_CONFIG
+                config = SystemConfig.DEFAULT_CAMERA_CONFIG # Parte de la por defecto, y le asigna su id
                 config.camera_id = camera_id
                 
                 if camera_manager.initialize_camera(camera_id, config):
@@ -167,25 +162,25 @@ def create_app() -> Flask:
                 'error': str(e)
             }), 500
     
-    # === ENDPOINTS DE GRABACIÓN ===
+    # ENDPOINTS DE GRABACIÓN
     
     @app.route('/api/recording/start', methods=['POST'])
     def start_recording():
-        """Iniciar grabación (con descubrimiento e inicialización automática)"""
+        """Iniciar grabación"""
         try:
             data = request.get_json() or {}
             patient_id = data.get('patient_id', f'patient_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
             
             # 1. Si no hay cámaras inicializadas, hacer descubrimiento e inicialización automática
             if not camera_manager.cameras:
-                print("🔍 No hay cámaras inicializadas. Iniciando descubrimiento automático...")
+                print("No hay cámaras inicializadas. Iniciando descubrimiento automático...")
                 
                 # Descubrir cámaras
                 discovered_cameras = camera_manager.discover_cameras()
                 if not discovered_cameras:
                     return jsonify({
                         'success': False,
-                        'error': 'No se encontraron cámaras Orbbec conectadas'
+                        'error': 'No se encontraron cámaras conectadas'
                     }), 400
                 
                 # Inicializar todas las cámaras encontradas
@@ -196,9 +191,9 @@ def create_app() -> Flask:
                     
                     if camera_manager.initialize_camera(camera_info.camera_id, config):
                         initialized_count += 1
-                        print(f"✅ Cámara {camera_info.camera_id} inicializada automáticamente")
+                        print(f"Cámara {camera_info.camera_id} inicializada automáticamente")
                     else:
-                        print(f"❌ Error inicializando cámara {camera_info.camera_id}")
+                        print(f"Error inicializando cámara {camera_info.camera_id}")
                 
                 if initialized_count == 0:
                     return jsonify({
@@ -249,7 +244,7 @@ def create_app() -> Flask:
                     'final_chunks_count': len(final_chunks)
                 }, timeout=10)
             except Exception as e:
-                print(f"⚠️  Error notificando fin de sesión al servidor: {e}")
+                print(f"Error notificando fin de sesión al servidor: {e}")
             
             return jsonify({
                 'success': True,
@@ -282,7 +277,7 @@ def create_app() -> Flask:
                     'reason': 'cancelled_by_user'
                 }, timeout=10)
             except Exception as e:
-                print(f"⚠️  Error notificando cancelación al servidor: {e}")
+                print(f"Error notificando cancelación al servidor: {e}")
             
             return jsonify({
                 'success': True,
@@ -314,7 +309,7 @@ def create_app() -> Flask:
                 'error': str(e)
             }), 500
     
-    # === ENDPOINTS DE SISTEMA ===
+    # ENDPOINTS DE SISTEMA
     
     @app.route('/api/system/health', methods=['GET'])
     def system_health():
@@ -360,18 +355,18 @@ def create_app() -> Flask:
     return app
 
 
-def run_server():
-    """Ejecutar el servidor Flask"""
+def run_server(): # Ejecuta el servidor Flask
+    
     # Crear directorios necesarios
     SystemConfig.ensure_directories()
     
     app = create_app()
     
-    print(f"🚀 Iniciando servidor de cámaras Orbbec...")
-    print(f"📍 URL: http://{SystemConfig.LOCAL_API_HOST}:{SystemConfig.LOCAL_API_PORT}")
-    print(f"📁 Directorio temporal: {SystemConfig.TEMP_VIDEO_DIR}")
-    print(f"🎯 Servidor de procesamiento: {SystemConfig.SERVER.base_url}")
-    
+    print(f"Iniciando servidor de cámaras Orbbec...")
+    print(f"URL: http://{SystemConfig.LOCAL_API_HOST}:{SystemConfig.LOCAL_API_PORT}")
+    print(f"Directorio temporal: {SystemConfig.TEMP_VIDEO_DIR}")
+    print(f"Servidor de procesamiento: {SystemConfig.SERVER.base_url}")
+
     app.run(
         host=SystemConfig.LOCAL_API_HOST,
         port=SystemConfig.LOCAL_API_PORT,
