@@ -7,7 +7,7 @@ from typing import Dict, Any
 
 from ..camera_manager import camera_manager, CameraInfo
 from ..video_processor import video_processor, VideoChunk
-from ..config.settings import SystemConfig
+from ..config.settings import SystemConfig, CameraConfig
 
 
 def create_app() -> Flask:
@@ -38,7 +38,7 @@ def create_app() -> Flask:
             
             # Preparar datos del chunk
             files = {
-                'video': open(chunk.file_path, 'rb')
+                'file': open(chunk.file_path, 'rb')  # Server espera 'file'
             }
             
             data = {
@@ -69,7 +69,7 @@ def create_app() -> Flask:
         finally:
             # Cerrar archivo
             try:
-                files['video'].close()
+                files['file'].close()
             except:
                 pass
     
@@ -117,8 +117,14 @@ def create_app() -> Flask:
             errors = []
             
             for camera_id in camera_ids:
-                config = SystemConfig.DEFAULT_CAMERA_CONFIG # Parte de la por defecto, y le asigna su id
-                config.camera_id = camera_id
+                # Crear nueva configuración para cada cámara
+                config = CameraConfig(
+                    camera_id=camera_id,
+                    resolution_width=SystemConfig.DEFAULT_CAMERA_CONFIG.resolution_width,
+                    resolution_height=SystemConfig.DEFAULT_CAMERA_CONFIG.resolution_height,
+                    fps=SystemConfig.DEFAULT_CAMERA_CONFIG.fps,
+                    format=SystemConfig.DEFAULT_CAMERA_CONFIG.format
+                )
                 
                 if camera_manager.initialize_camera(camera_id, config):
                     initialized.append(camera_id)
@@ -180,6 +186,21 @@ def create_app() -> Flask:
             
             # Iniciar sesión
             session_id = video_processor.start_session(patient_id)
+            
+            # Notificar al servidor que la sesión inició
+            try:
+                url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_start_endpoint}"
+                start_response = requests.post(url, json={
+                    'patient_id': patient_id,
+                    'session_id': session_id,
+                    'cameras_count': len(camera_manager.cameras)
+                }, timeout=10)
+                
+                if start_response.status_code != 200:
+                    print(f"Error notificando inicio de sesión al servidor: {start_response.status_code}")
+            except Exception as e:
+                print(f"Error notificando inicio de sesión al servidor: {e}")
+                # No fallar si el servidor no responde, continuar con grabación local
             
             # Iniciar grabación
             if video_processor.start_recording():
