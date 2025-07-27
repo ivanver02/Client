@@ -28,7 +28,7 @@ class RecordingConfig:
 @dataclass
 class ServerConfig:
     """Configuración del servidor remoto"""
-    base_url: str = "http://localhost:8000"
+    base_url: str = "http://192.168.159.101:11299"
     upload_endpoint: str = "/api/chunks/receive"
     session_start_endpoint: str = "/api/session/start"
     session_end_endpoint: str = "/api/session/end" 

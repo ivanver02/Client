@@ -153,6 +153,40 @@ document.addEventListener('DOMContentLoaded', () => {
             startBtn.disabled = true;
             startBtn.textContent = "Iniciando...";
             
+            // 1. Asegurar que las cámaras están descubiertas e inicializadas
+            console.log('Verificando cámaras antes de grabar...');
+            
+            // Descubrir cámaras
+            const discoverResponse = await fetch(API.discoverCameras);
+            if (!discoverResponse.ok) {
+                throw new Error('Error descubriendo cámaras');
+            }
+            
+            const discoverData = await discoverResponse.json();
+            if (!discoverData.success || discoverData.cameras.length === 0) {
+                throw new Error('No se encontraron cámaras conectadas');
+            }
+            
+            // Inicializar cámaras
+            console.log('Inicializando cámaras antes de grabar...');
+            const initResponse = await fetch(API.initializeCameras, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({})
+            });
+            
+            if (!initResponse.ok) {
+                throw new Error('Error inicializando cámaras');
+            }
+            
+            const initData = await initResponse.json();
+            if (!initData.success || initData.initialized_cameras.length === 0) {
+                throw new Error('No se pudieron inicializar las cámaras');
+            }
+            
+            console.log(`${initData.initialized_cameras.length} cámaras inicializadas para grabación`);
+            
+            // 2. Iniciar grabación
             console.log('Enviando request a:', API.startRecording);
             const response = await fetch(API.startRecording, {
                 method: 'POST',

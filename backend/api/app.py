@@ -46,7 +46,7 @@ def create_app() -> Flask:
                 'camera_id': chunk.camera_id,
                 'session_id': chunk.session_id,
                 'patient_id': chunk.patient_id,
-                'sequence_number': chunk.sequence_number,
+                'chunk_number': chunk.sequence_number,  # Server espera chunk_number
                 'duration_seconds': chunk.duration_seconds,
                 'timestamp': chunk.timestamp.isoformat(),
                 'file_size_bytes': chunk.file_size_bytes
@@ -171,42 +171,17 @@ def create_app() -> Flask:
             data = request.get_json() or {}
             patient_id = data.get('patient_id', f'patient_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
             
-            # 1. Si no hay cámaras inicializadas, hacer descubrimiento e inicialización automática
+            # Verificar que hay cámaras inicializadas
             if not camera_manager.cameras:
-                print("No hay cámaras inicializadas. Iniciando descubrimiento automático...")
-                
-                # Descubrir cámaras
-                discovered_cameras = camera_manager.discover_cameras()
-                if not discovered_cameras:
-                    return jsonify({
-                        'success': False,
-                        'error': 'No se encontraron cámaras conectadas'
-                    }), 400
-                
-                # Inicializar todas las cámaras encontradas
-                initialized_count = 0
-                for camera_info in discovered_cameras:
-                    config = camera_manager.DEFAULT_CAMERA_CONFIG
-                    config.camera_id = camera_info.camera_id
-                    
-                    if camera_manager.initialize_camera(camera_info.camera_id, config):
-                        initialized_count += 1
-                        print(f"Cámara {camera_info.camera_id} inicializada automáticamente")
-                    else:
-                        print(f"Error inicializando cámara {camera_info.camera_id}")
-                
-                if initialized_count == 0:
-                    return jsonify({
-                        'success': False,
-                        'error': 'No se pudo inicializar ninguna cámara'
-                    }), 400
-                
-                print(f"🎯 {initialized_count} cámaras inicializadas automáticamente")
+                return jsonify({
+                    'success': False,
+                    'error': 'No hay cámaras inicializadas. Inicialice las cámaras primero.'
+                }), 400
             
-            # 2. Iniciar sesión
+            # Iniciar sesión
             session_id = video_processor.start_session(patient_id)
             
-            # 3. Iniciar grabación
+            # Iniciar grabación
             if video_processor.start_recording():
                 return jsonify({
                     'success': True,
@@ -214,8 +189,7 @@ def create_app() -> Flask:
                     'patient_id': patient_id,
                     'cameras_recording': list(camera_manager.cameras.keys()),
                     'cameras_initialized': len(camera_manager.cameras),
-                    'chunk_duration_seconds': SystemConfig.RECORDING.chunk_duration_seconds,
-                    'auto_initialized': len(camera_manager.cameras) > 0
+                    'chunk_duration_seconds': SystemConfig.RECORDING.chunk_duration_seconds
                 })
             else:
                 return jsonify({

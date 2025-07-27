@@ -174,15 +174,6 @@ class OrbbecCamera:
 class CameraManager:
     """Gestor principal de cámaras Orbbec"""
     
-    # Configuración por defecto para cámaras
-    DEFAULT_CAMERA_CONFIG = CameraConfig(
-        camera_id=0,
-        resolution_width=640,
-        resolution_height=480,
-        fps=30,
-        format="RGB"
-    )
-    
     def __init__(self):
         self.cameras: Dict[int, OrbbecCamera] = {}
         self.camera_configs: Dict[int, CameraConfig] = {}
