@@ -230,6 +230,11 @@ class CameraManager:
     def initialize_camera(self, camera_id: int, config: CameraConfig) -> bool:
         """Inicializar una cámara específica"""
         try:
+            # Verificar si la cámara ya está inicializada
+            if camera_id in self.cameras:
+                print(f"Cámara {camera_id} ya está inicializada")
+                return True
+            
             device_list = self.context.query_devices()
             
             if camera_id >= device_list.get_count():

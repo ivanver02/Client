@@ -131,7 +131,7 @@ class VideoProcessor:
         if self.recording_active:
             raise Exception("Ya hay una sesión activa")
             
-        self.session_id = str(uuid.uuid4())
+        self.session_id = "0"  # ID simple para carpetas
         self.patient_id = patient_id
         self.chunk_sequence.clear()
         
@@ -142,7 +142,7 @@ class VideoProcessor:
         for camera_id in camera_manager.cameras:
             self.chunk_sequence[camera_id] = 0
             
-        print(f"Nueva sesión iniciada: {self.session_id} para paciente: {patient_id}")
+        print(f"Nueva sesión iniciada: {self.session_id} para paciente: {self.patient_id}")
         return self.session_id
     
     def start_recording(self) -> bool:

@@ -175,7 +175,7 @@ def create_app() -> Flask:
         """Iniciar grabación"""
         try:
             data = request.get_json() or {}
-            patient_id = data.get('patient_id', f'patient_{datetime.now().strftime("%Y%m%d_%H%M%S")}')
+            patient_id = data.get('patient_id', '0')
             
             # Verificar que hay cámaras inicializadas
             if not camera_manager.cameras:
@@ -186,6 +186,16 @@ def create_app() -> Flask:
             
             # Iniciar sesión
             session_id = video_processor.start_session(patient_id)
+            
+            # Cancelar cualquier sesión anterior en el servidor
+            try:
+                cancel_url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_cancel_endpoint}"
+                requests.post(cancel_url, json={
+                    'reason': 'new_session_starting'
+                }, timeout=5)
+                print("Sesión anterior cancelada en el servidor")
+            except Exception as e:
+                print(f"Info: No había sesión anterior que cancelar: {e}")
             
             # Notificar al servidor que la sesión inició
             try:

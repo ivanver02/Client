@@ -144,7 +144,7 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('Iniciando proceso de grabación...');
             
             // Validar datos
-            const patientId = patientIdInput.value.trim() || `patient_${new Date().toISOString().split('T')[0]}`;
+            const patientId = patientIdInput.value.trim() || '0';
             console.log('Patient ID:', patientId);
             
             showMessage(`Iniciando grabación para paciente: ${patientId}`);
