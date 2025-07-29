@@ -177,6 +177,7 @@ def create_app() -> Flask:
         try:
             data = request.get_json() or {}
             patient_id = data.get('patient_id', '1')
+            session_id = data.get('session_id', '1')
             
             # Verificar que hay cámaras inicializadas
             if not camera_manager.cameras:
@@ -186,14 +187,14 @@ def create_app() -> Flask:
                 }), 400
             
             # Iniciar sesión
-            session_id = video_processor.start_session(patient_id)
+            result_session_id = video_processor.start_session(patient_id, session_id)
             
             # Notificar al servidor que la sesión inició (el servidor maneja automáticamente el cierre de sesiones anteriores)
             try:
                 url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_start_endpoint}"
                 start_response = requests.post(url, json={
                     'patient_id': patient_id,
-                    'session_id': session_id,
+                    'session_id': session_id,  # Usar el session_id del frontend
                     'cameras_count': len(camera_manager.cameras)
                 }, timeout=10)
                 

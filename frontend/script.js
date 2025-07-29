@@ -145,7 +145,9 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Validar datos
             const patientId = patientIdInput.value.trim() || '1';
+            const sessionId = sessionIdInput.value.trim() || '1';
             console.log('Patient ID:', patientId);
+            console.log('Session ID:', sessionId);
             
             showMessage(`Iniciando grabación para paciente: ${patientId}`);
             
@@ -191,7 +193,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(API.startRecording, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ patient_id: patientId })
+                body: JSON.stringify({ 
+                    patient_id: patientId,
+                    session_id: sessionId
+                })
             });
             
             console.log('Response status:', response.status);

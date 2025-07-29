@@ -126,12 +126,12 @@ class VideoProcessor:
         # Configuración
         self.config = SystemConfig.RECORDING
         
-    def start_session(self, patient_id: str) -> str:
+    def start_session(self, patient_id: str, session_id: str = "1") -> str:
         """Iniciar nueva sesión de grabación"""
         if self.recording_active:
             raise Exception("Ya hay una sesión activa")
             
-        self.session_id = "1"  # ID simple para carpetas
+        self.session_id = session_id  # Usar el session_id proporcionado
         self.patient_id = patient_id
         self.chunk_sequence.clear()
         
