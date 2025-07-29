@@ -187,17 +187,7 @@ def create_app() -> Flask:
             # Iniciar sesión
             session_id = video_processor.start_session(patient_id)
             
-            # Cancelar cualquier sesión anterior en el servidor
-            try:
-                cancel_url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_cancel_endpoint}"
-                requests.post(cancel_url, json={
-                    'reason': 'new_session_starting'
-                }, timeout=5)
-                print("Sesión anterior cancelada en el servidor")
-            except Exception as e:
-                print(f"Info: No había sesión anterior que cancelar: {e}")
-            
-            # Notificar al servidor que la sesión inició
+            # Notificar al servidor que la sesión inició (el servidor maneja automáticamente el cierre de sesiones anteriores)
             try:
                 url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_start_endpoint}"
                 start_response = requests.post(url, json={
@@ -243,11 +233,19 @@ def create_app() -> Flask:
             # Notificar al servidor que la sesión terminó
             try:
                 url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_end_endpoint}"
-                requests.post(url, json={
+                end_response = requests.post(url, json={
                     'session_id': video_processor.session_id,
                     'patient_id': video_processor.patient_id,
-                    'final_chunks_count': len(final_chunks)
+                    'final_chunks_count': len(final_chunks),
+                    'reason': 'session_completed'
                 }, timeout=10)
+                
+                if end_response.status_code == 200:
+                    print("✅ Sesión finalizada correctamente en el servidor (datos preservados)")
+                elif end_response.status_code == 400:
+                    print("ℹ️ Info: No había sesión activa en el servidor para finalizar")
+                else:
+                    print(f"⚠️ Warning: Respuesta inesperada del servidor al finalizar: {end_response.status_code}")
             except Exception as e:
                 print(f"Error notificando fin de sesión al servidor: {e}")
             
@@ -276,11 +274,18 @@ def create_app() -> Flask:
             # Notificar al servidor que la sesión fue cancelada
             try:
                 url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_cancel_endpoint}"
-                requests.post(url, json={
+                cancel_response = requests.post(url, json={
                     'session_id': session_id,
                     'patient_id': patient_id,
                     'reason': 'cancelled_by_user'
                 }, timeout=10)
+                
+                if cancel_response.status_code == 200:
+                    print("🗑️ Sesión cancelada correctamente en el servidor (datos eliminados)")
+                elif cancel_response.status_code == 400:
+                    print("ℹ️ Info: No había sesión activa en el servidor para cancelar")
+                else:
+                    print(f"⚠️ Warning: Respuesta inesperada del servidor al cancelar: {cancel_response.status_code}")
             except Exception as e:
                 print(f"Error notificando cancelación al servidor: {e}")
             
