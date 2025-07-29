@@ -131,7 +131,7 @@ class VideoProcessor:
         if self.recording_active:
             raise Exception("Ya hay una sesión activa")
             
-        self.session_id = "0"  # ID simple para carpetas
+        self.session_id = "1"  # ID simple para carpetas
         self.patient_id = patient_id
         self.chunk_sequence.clear()
         

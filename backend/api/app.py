@@ -176,7 +176,7 @@ def create_app() -> Flask:
         """Iniciar grabación"""
         try:
             data = request.get_json() or {}
-            patient_id = data.get('patient_id', '0')
+            patient_id = data.get('patient_id', '1')
             
             # Verificar que hay cámaras inicializadas
             if not camera_manager.cameras:
