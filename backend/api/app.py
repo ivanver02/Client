@@ -1,4 +1,5 @@
 import os
+import time
 import requests
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -228,7 +229,22 @@ def create_app() -> Flask:
     def stop_recording():
         """Finalizar grabación"""
         try:
+            print("🛑 Procesando finalización de grabación...")
             final_chunks = video_processor.stop_recording()
+            
+            # Enviar chunks finales inmediatamente al servidor
+            if final_chunks:
+                print(f"📤 Enviando {len(final_chunks)} chunks finales al servidor...")
+                for chunk in final_chunks:
+                    try:
+                        # Usar el mismo callback que se usa para chunks regulares
+                        upload_chunk_to_server(chunk)
+                        print(f"✅ Chunk final enviado: Cámara {chunk.camera_id}, Duración: {chunk.duration_seconds:.2f}s")
+                    except Exception as upload_error:
+                        print(f"❌ Error enviando chunk final de cámara {chunk.camera_id}: {upload_error}")
+            
+            # Dar un momento para que se completen las subidas
+            time.sleep(2)
             
             # Notificar al servidor que la sesión terminó
             try:
@@ -253,7 +269,7 @@ def create_app() -> Flask:
                 'success': True,
                 'session_id': video_processor.session_id,
                 'final_chunks_count': len(final_chunks),
-                'message': 'Grabación finalizada correctamente'
+                'message': f'Grabación finalizada correctamente. {len(final_chunks)} chunks finales enviados.'
             })
             
         except Exception as e:

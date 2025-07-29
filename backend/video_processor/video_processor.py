@@ -178,24 +178,62 @@ class VideoProcessor:
         if not self.recording_active:
             return []
             
-        print("Deteniendo grabación...")
+        print("🛑 Deteniendo grabación...")
+        print("📦 Generando chunks finales con frames restantes...")
+        
+        # Marcar que debe detenerse la grabación, pero permitir que termine el chunk actual
         self.recording_active = False
         
         # Esperar a que termine el hilo de grabación
         if self.recording_thread and self.recording_thread.is_alive():
-            self.recording_thread.join(timeout=10)
+            print("⏳ Esperando a que termine el hilo de grabación...")
+            self.recording_thread.join(timeout=15)  # Aumentar timeout para permitir finalización
+        
+        # Generar chunks finales con cualquier frame restante
+        final_chunks = []
+        
+        # Capturar algunos frames adicionales para el chunk final si hay writers activos
+        if self.current_writers:
+            print(f"📹 Capturando frames finales para {len(self.current_writers)} cámaras...")
+            
+            # Capturar hasta 1 segundo adicional de frames para el chunk final
+            frames_captured = 0
+            max_final_frames = 30  # Aproximadamente 1 segundo a 30fps
+            
+            try:
+                for _ in range(max_final_frames):
+                    frames_written_this_cycle = 0
+                    
+                    for camera_id in list(self.current_writers.keys()):
+                        frame = camera_manager.get_frame(camera_id)
+                        if frame is not None and camera_id in self.current_writers:
+                            if self.current_writers[camera_id].write_frame(frame):
+                                frames_written_this_cycle += 1
+                    
+                    if frames_written_this_cycle == 0:
+                        break  # No hay más frames disponibles
+                    
+                    frames_captured += frames_written_this_cycle
+                    time.sleep(1/30)  # Aproximadamente 30fps
+                
+                if frames_captured > 0:
+                    print(f"✅ Capturados {frames_captured} frames adicionales para chunks finales")
+                
+            except Exception as e:
+                print(f"⚠️ Error capturando frames finales: {e}")
         
         # Finalizar writers actuales
-        final_chunks = []
+        print("🔒 Finalizando writers actuales...")
         for camera_id, writer in self.current_writers.items():
             chunk = self._finalize_writer(camera_id, writer)
             if chunk:
                 final_chunks.append(chunk)
+                print(f"📤 Chunk final generado para cámara {camera_id}: {chunk.duration_seconds:.2f}s")
         
         self.current_writers.clear()
         camera_manager.stop_recording_all()
         
-        print(f"Grabación detenida. {len(final_chunks)} chunks finales generados")
+        print(f"✅ Grabación detenida. {len(final_chunks)} chunks finales generados")
         return final_chunks
     
     def cancel_recording(self) -> bool:
