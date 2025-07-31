@@ -10,6 +10,9 @@ from ..camera_manager import camera_manager, CameraInfo
 from ..video_processor import video_processor, VideoChunk
 from ..config.settings import SystemConfig, CameraConfig
 
+# Variable global para rastrear cancelaciones por fallo de cámaras
+camera_failure_detected = False
+
 
 def create_app() -> Flask:
     # Ajustar la ruta para que apunte a la carpeta 'frontend' en el directorio raíz
@@ -62,6 +65,32 @@ def create_app() -> Flask:
                     os.remove(chunk.file_path)
                 except Exception as e:
                     print(f"Error eliminando archivo local: {e}")
+            elif response.status_code == 500:
+                # Verificar si es un error de fallo de cámaras
+                try:
+                    error_data = response.json()
+                    if error_data.get('error') == 'CAMERA_FAILURE_DETECTED':
+                        print(f"🚨 FALLO DE CÁMARAS DETECTADO POR EL SERVIDOR 🚨")
+                        print(f"Mensaje: {error_data.get('message', 'Error de cámaras')}")
+                        print(f"Acción requerida: {error_data.get('action_required', 'Reiniciar switch')}")
+                        
+                        # Marcar que hubo un fallo de cámaras
+                        global camera_failure_detected
+                        camera_failure_detected = True
+                        
+                        # Cancelar la sesión actual inmediatamente
+                        try:
+                            print("🛑 Cancelando sesión local debido a fallo de cámaras...")
+                            video_processor.cancel_current_session()
+                            print("✅ Sesión local cancelada por fallo de cámaras")
+                        except Exception as cancel_error:
+                            print(f"Error cancelando sesión local: {cancel_error}")
+                        
+                        return  # No continuar procesando este chunk
+                except:
+                    pass  # Si no se puede parsear como JSON, continuar con el manejo normal
+                    
+                print(f"Error 500 enviando chunk: {response.status_code} - {response.text}")
             else:
                 print(f"Error enviando chunk: {response.status_code} - {response.text}")
                 
@@ -179,6 +208,10 @@ def create_app() -> Flask:
             patient_id = data.get('patient_id', '1')
             session_id = data.get('session_id', '1')
             
+            # Reiniciar flag de fallo de cámaras al iniciar nueva sesión
+            global camera_failure_detected
+            camera_failure_detected = False
+            
             # Verificar que hay cámaras inicializadas
             if not camera_manager.cameras:
                 return jsonify({
@@ -226,6 +259,58 @@ def create_app() -> Flask:
                 'error': str(e)
             }), 500
     
+    @app.route('/api/recording/status', methods=['GET'])
+    def get_recording_status():
+        """Obtener estado actual de la grabación"""
+        try:
+            global camera_failure_detected
+            
+            # Manejar casos donde video_processor puede no estar inicializado
+            try:
+                is_recording = video_processor.recording_active if video_processor else False
+                session_id = video_processor.session_id if video_processor else None
+                patient_id = video_processor.patient_id if video_processor else None
+            except AttributeError:
+                is_recording = False
+                session_id = None
+                patient_id = None
+            
+            cameras_info = []
+            try:
+                for camera_id, camera in camera_manager.cameras.items():
+                    cameras_info.append({
+                        'camera_id': camera_id,
+                        'is_connected': getattr(camera, 'is_connected', False),
+                        'is_recording': getattr(camera, 'is_recording', False)
+                    })
+            except AttributeError:
+                # Si camera_manager.cameras no existe o está vacío
+                pass
+            
+            # Determinar si la sesión fue cancelada por fallo de cámaras
+            session_cancelled_by_camera_failure = camera_failure_detected and not is_recording and session_id is None
+            
+            return jsonify({
+                'success': True,
+                'is_recording': is_recording,
+                'session_id': session_id,
+                'patient_id': patient_id,
+                'cameras': cameras_info,
+                'total_cameras': len(cameras_info),
+                'session_cancelled': not is_recording and session_id is None,
+                'camera_failure_detected': camera_failure_detected,
+                'session_cancelled_by_camera_failure': session_cancelled_by_camera_failure
+            })
+            
+        except Exception as e:
+            print(f"Error en get_recording_status: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e),
+                'camera_failure_detected': camera_failure_detected,
+                'session_cancelled_by_camera_failure': camera_failure_detected
+            }), 200  # Cambiar a 200 para que el frontend pueda procesar la respuesta
+
     @app.route('/api/recording/stop', methods=['POST'])
     def stop_recording():
         """Finalizar grabación"""

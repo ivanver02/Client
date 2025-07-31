@@ -26,7 +26,8 @@ document.addEventListener('DOMContentLoaded', () => {
         cameras: 0,
         isRecording: false,
         sessionId: null,
-        patientId: null
+        patientId: null,
+        statusPollingInterval: null
     };
 
     // --- API Endpoints ---
@@ -55,6 +56,139 @@ document.addEventListener('DOMContentLoaded', () => {
         // Deshabilitar inputs durante grabación
         patientIdInput.disabled = isRecording;
         sessionIdInput.disabled = isRecording;
+        
+        // Iniciar/detener polling de estado
+        if (isRecording) {
+            startStatusPolling();
+        } else {
+            stopStatusPolling();
+        }
+    }
+
+    /**
+     * Iniciar verificación periódica del estado de grabación
+     */
+    function startStatusPolling() {
+        if (state.statusPollingInterval) {
+            clearInterval(state.statusPollingInterval);
+        }
+        
+        console.log('🔍 Iniciando verificación de estado cada 2 segundos...');
+        
+        state.statusPollingInterval = setInterval(async () => {
+            try {
+                console.log('📡 Verificando estado de grabación...');
+                const response = await fetch(API.recordingStatus);
+                
+                if (response.ok) {
+                    const statusData = await response.json();
+                    console.log('📊 Estado recibido:', statusData);
+                    
+                    if (statusData.success) {
+                        // Verificar si hubo fallo de cámaras
+                        if (statusData.session_cancelled_by_camera_failure || statusData.camera_failure_detected) {
+                            console.log('🚨 FALLO DE CÁMARAS DETECTADO EN STATUS!');
+                            handleCameraFailure();
+                            return;
+                        }
+                        
+                        // Verificar si la sesión fue cancelada por otra razón
+                        if (state.isRecording && statusData.session_cancelled && !statusData.is_recording) {
+                            console.log('⚠️ Sesión cancelada externamente');
+                            showMessage('La sesión fue cancelada', 'warning');
+                            resetRecordingState();
+                        }
+                    } else {
+                        // Incluso si success=false, verificar si hay fallo de cámaras
+                        if (statusData.camera_failure_detected || statusData.session_cancelled_by_camera_failure) {
+                            console.log('🚨 FALLO DE CÁMARAS DETECTADO EN ERROR RESPONSE!');
+                            handleCameraFailure();
+                            return;
+                        }
+                        console.log('⚠️ Status response success=false:', statusData.error);
+                    }
+                } else {
+                    console.log('❌ Error en respuesta de status:', response.status, response.statusText);
+                }
+            } catch (error) {
+                console.error('💥 Error verificando estado:', error);
+            }
+        }, 2000); // Verificar cada 2 segundos
+    }
+
+    /**
+     * Detener verificación periódica del estado
+     */
+    function stopStatusPolling() {
+        if (state.statusPollingInterval) {
+            clearInterval(state.statusPollingInterval);
+            state.statusPollingInterval = null;
+        }
+    }
+
+    /**
+     * Manejar fallo de cámaras detectado
+     */
+    function handleCameraFailure() {
+        console.log('🚨🚨🚨 FALLO DE CÁMARAS DETECTADO 🚨🚨🚨');
+        
+        // Detener polling inmediatamente
+        stopStatusPolling();
+        
+        // Deshabilitar todos los botones inmediatamente
+        if (processBtn) {
+            processBtn.disabled = true;
+            processBtn.textContent = "Sistema Cancelado";
+        }
+        if (cancelBtn) {
+            cancelBtn.disabled = true;
+        }
+        
+        // Mostrar mensaje prominente en consola
+        console.error('🚨🔌 CANCELANDO SESIÓN POR FALLO DE CÁMARAS - DESCONECTAR Y CONECTAR EL SWITCH 🔌🚨');
+        showMessage('¡FALLO DE CÁMARAS DETECTADO!', 'error');
+        
+        // Mostrar alert prominente al usuario
+        alert('🚨 FALLO DE CÁMARAS DETECTADO 🚨\n\n' +
+              'Algunas cámaras no funcionaron correctamente.\n\n' +
+              'INSTRUCCIONES IMPORTANTES:\n' +
+              '1. 🔌 Desconecta el switch de las cámaras\n' +
+              '2. ⏱️ Espera 5 segundos\n' +
+              '3. 🔌 Vuelve a conectar el switch\n' +
+              '4. 🎯 Reinicia una nueva grabación\n\n' +
+              'La sesión ha sido cancelada automáticamente.');
+        
+        // Resetear estado inmediatamente
+        resetRecordingState();
+    }
+
+    /**
+     * Resetear estado de grabación
+     */
+    function resetRecordingState() {
+        console.log('🔄 Reseteando estado de grabación...');
+        
+        state.sessionId = null;
+        state.patientId = null;
+        sessionIdInput.value = "";
+        patientIdInput.value = "";
+        
+        // Resetear botones
+        if (processBtn) {
+            processBtn.disabled = false;
+            processBtn.textContent = "Procesar";
+        }
+        if (cancelBtn) {
+            cancelBtn.disabled = false;
+        }
+        
+        toggleRecordingControls(false);
+        
+        // Reinicializar sistema para detectar cámaras nuevamente
+        setTimeout(() => {
+            console.log('🔄 Reinicializando sistema...');
+            initializeSystem();
+        }, 1000);
     }
 
     // --- Funciones principales ---
@@ -239,6 +373,18 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function handleProcessRecording() {
         try {
+            // Verificar estado antes de procesar
+            console.log('🔍 Verificando estado antes de procesar...');
+            const statusResponse = await fetch(API.recordingStatus);
+            if (statusResponse.ok) {
+                const statusData = await statusResponse.json();
+                if (statusData.camera_failure_detected || statusData.session_cancelled_by_camera_failure) {
+                    console.log('🚨 Fallo de cámaras detectado antes de procesar!');
+                    handleCameraFailure();
+                    return;
+                }
+            }
+            
             showMessage('Finalizando grabación...');
             
             processBtn.disabled = true;
@@ -261,13 +407,8 @@ document.addEventListener('DOMContentLoaded', () => {
             showMessage(`Grabación finalizada. Chunks procesados: ${data.final_chunks_count || 0}`, 'success');
             alert("¡Grabación finalizada y procesada con éxito!");
             
-            // Reset state
-            state.sessionId = null;
-            state.patientId = null;
-            sessionIdInput.value = "";
-            patientIdInput.value = "";
-            
-            toggleRecordingControls(false);
+            // Reset state usando la nueva función
+            resetRecordingState();
             
         } catch (error) {
             showMessage(`Error al procesar: ${error.message}`, 'error');
@@ -305,13 +446,8 @@ document.addEventListener('DOMContentLoaded', () => {
             
             showMessage('Grabación cancelada exitosamente', 'success');
             
-            // Reset state
-            state.sessionId = null;
-            state.patientId = null;
-            sessionIdInput.value = "";
-            patientIdInput.value = "";
-            
-            toggleRecordingControls(false);
+            // Reset state usando la nueva función
+            resetRecordingState();
             
         } catch (error) {
             showMessage(`Error al cancelar: ${error.message}`, 'error');
@@ -362,6 +498,10 @@ document.addEventListener('DOMContentLoaded', () => {
             initializeSystem();
         }
     }, 30000);
+    // Limpiar intervals al cerrar la página
+    window.addEventListener('beforeunload', () => {
+        stopStatusPolling();
+    });
     
     } catch (error) {
         console.error('Error crítico en el script:', error);

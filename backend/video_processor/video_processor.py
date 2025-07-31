@@ -433,6 +433,28 @@ class VideoProcessor:
     def add_upload_callback(self, callback: Callable[[VideoChunk], None]):
         """Añadir callback para cuando se genere un chunk"""
         self.upload_callbacks.append(callback)
+    
+    def cancel_current_session(self) -> bool:
+        """Cancelar la sesión actual completamente"""
+        try:
+            print("🚨 Cancelando sesión actual por fallo de cámaras...")
+            
+            # Cancelar grabación si está activa
+            if self.recording_active:
+                self.cancel_recording()
+            
+            # Limpiar estado de la sesión
+            self.session_id = None
+            self.patient_id = None
+            self.chunk_sequence.clear()
+            self.current_writers.clear()
+            
+            print("✅ Sesión cancelada completamente")
+            return True
+            
+        except Exception as e:
+            print(f"Error cancelando sesión: {e}")
+            return False
 
 
 # Singleton del procesador de video
