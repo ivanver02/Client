@@ -3,12 +3,11 @@ import threading
 import time
 import cv2
 import uuid
-import requests
 from datetime import datetime
 from typing import Dict, List, Optional, Callable
 from dataclasses import dataclass
 
-from ..config.settings import SystemConfig, RecordingConfig
+from ..config.settings import SystemConfig
 from ..camera_manager import camera_manager
 
 
@@ -29,10 +28,9 @@ class VideoChunk:
 class VideoWriter:
     """Manejador de escritura de video para una cámara"""
     
-    def __init__(self, camera_id: int, output_path: str, config: RecordingConfig):
+    def __init__(self, camera_id: int, output_path: str):
         self.camera_id = camera_id
         self.output_path = output_path
-        self.config = config
         self.writer: Optional[cv2.VideoWriter] = None
         self.frame_count = 0
         self.start_time: Optional[datetime] = None
@@ -126,7 +124,7 @@ class VideoProcessor:
         # Configuración
         self.config = SystemConfig.RECORDING
         
-    def start_session(self, patient_id: str, session_id: str = "1") -> str:
+    def start_session(self, patient_id: str, session_id: str = "1") -> str: # Se emplea en el start_recording del app.py
         """Iniciar nueva sesión de grabación"""
         if self.recording_active:
             raise Exception("Ya hay una sesión activa")
@@ -178,15 +176,15 @@ class VideoProcessor:
         if not self.recording_active:
             return []
             
-        print("🛑 Deteniendo grabación...")
-        print("📦 Generando chunks finales con frames restantes...")
+        print("Deteniendo grabación...")
+        print("Generando chunks finales con frames restantes...")
         
         # Marcar que debe detenerse la grabación, pero permitir que termine el chunk actual
         self.recording_active = False
         
         # Esperar a que termine el hilo de grabación
         if self.recording_thread and self.recording_thread.is_alive():
-            print("⏳ Esperando a que termine el hilo de grabación...")
+            print("Esperando a que termine el hilo de grabación...")
             self.recording_thread.join(timeout=15)  # Aumentar timeout para permitir finalización
         
         # Generar chunks finales con cualquier frame restante
@@ -194,7 +192,7 @@ class VideoProcessor:
         
         # Capturar algunos frames adicionales para el chunk final si hay writers activos
         if self.current_writers:
-            print(f"📹 Capturando frames finales para {len(self.current_writers)} cámaras...")
+            print(f"Capturando frames finales para {len(self.current_writers)} cámaras...")
             
             # Capturar hasta 1 segundo adicional de frames para el chunk final
             frames_captured = 0
@@ -217,23 +215,23 @@ class VideoProcessor:
                     time.sleep(1/30)  # Aproximadamente 30fps
                 
                 if frames_captured > 0:
-                    print(f"✅ Capturados {frames_captured} frames adicionales para chunks finales")
+                    print(f"Capturados {frames_captured} frames adicionales para chunks finales")
                 
             except Exception as e:
-                print(f"⚠️ Error capturando frames finales: {e}")
+                print(f"Error capturando frames finales: {e}")
         
         # Finalizar writers actuales
-        print("🔒 Finalizando writers actuales...")
+        print("Finalizando writers actuales...")
         for camera_id, writer in self.current_writers.items():
             chunk = self._finalize_writer(camera_id, writer)
             if chunk:
                 final_chunks.append(chunk)
-                print(f"📤 Chunk final generado para cámara {camera_id}: {chunk.duration_seconds:.2f}s")
+                print(f"Chunk final generado para cámara {camera_id}: {chunk.duration_seconds:.2f}s")
         
         self.current_writers.clear()
         camera_manager.stop_recording_all()
         
-        print(f"✅ Grabación detenida. {len(final_chunks)} chunks finales generados")
+        print(f"Grabación detenida. {len(final_chunks)} chunks finales generados")
         return final_chunks
     
     def cancel_recording(self) -> bool:
@@ -417,7 +415,7 @@ class VideoProcessor:
         except Exception as e:
             print(f"Error eliminando directorios de cámaras: {e}")
     
-    def _cleanup_camera_directories(self):
+    def _cleanup_camera_directories(self): # Se emplea en start_session de VideoProcessor
         """Limpiar todos los directorios de cámaras existentes"""
         try:
             import shutil
@@ -433,11 +431,11 @@ class VideoProcessor:
     def add_upload_callback(self, callback: Callable[[VideoChunk], None]):
         """Añadir callback para cuando se genere un chunk"""
         self.upload_callbacks.append(callback)
-    
-    def cancel_current_session(self) -> bool:
+
+    def cancel_current_session(self) -> bool: # Se emplea en upload_chunk_to_server de app.py
         """Cancelar la sesión actual completamente"""
         try:
-            print("🚨 Cancelando sesión actual por fallo de cámaras...")
+            print("Cancelando sesión actual por fallo de cámaras...")
             
             # Cancelar grabación si está activa
             if self.recording_active:
@@ -449,7 +447,7 @@ class VideoProcessor:
             self.chunk_sequence.clear()
             self.current_writers.clear()
             
-            print("✅ Sesión cancelada completamente")
+            print("Sesión cancelada completamente")
             return True
             
         except Exception as e:

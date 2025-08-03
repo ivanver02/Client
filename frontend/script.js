@@ -13,13 +13,13 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Verificar que todos los elementos existan
         console.log(' Verificando elementos del DOM:');
-        console.log('  - cameraCountSpan:', cameraCountSpan);
-        console.log('  - startBtn:', startBtn);
-        console.log('  - cancelBtn:', cancelBtn);
-        console.log('  - processBtn:', processBtn);
-        console.log('  - recordingControls:', recordingControls);
-        console.log('  - patientIdInput:', patientIdInput);
-        console.log('  - sessionIdInput:', sessionIdInput);
+        console.log('- cameraCountSpan:', cameraCountSpan);
+        console.log('- startBtn:', startBtn);
+        console.log('- cancelBtn:', cancelBtn);
+        console.log('- processBtn:', processBtn);
+        console.log('- recordingControls:', recordingControls);
+        console.log('- patientIdInput:', patientIdInput);
+        console.log('- sessionIdInput:', sessionIdInput);
 
     // --- Estado inicial de la aplicación ---
     let state = {
@@ -27,7 +27,7 @@ document.addEventListener('DOMContentLoaded', () => {
         isRecording: false,
         sessionId: null,
         patientId: null,
-        statusPollingInterval: null
+        statusPollingInterval: null //--- Esto es para comprobar periódicamente si han fallado las cámaras
     };
 
     // --- API Endpoints ---
@@ -73,45 +73,45 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(state.statusPollingInterval);
         }
         
-        console.log('🔍 Iniciando verificación de estado cada 2 segundos...');
+        console.log('Iniciando verificación de estado cada 2 segundos...');
         
         state.statusPollingInterval = setInterval(async () => {
             try {
-                console.log('📡 Verificando estado de grabación...');
+                console.log('Verificando estado de grabación...');
                 const response = await fetch(API.recordingStatus);
                 
                 if (response.ok) {
                     const statusData = await response.json();
-                    console.log('📊 Estado recibido:', statusData);
+                    console.log('Estado recibido:', statusData);
                     
                     if (statusData.success) {
                         // Verificar si hubo fallo de cámaras
                         if (statusData.session_cancelled_by_camera_failure || statusData.camera_failure_detected) {
-                            console.log('🚨 FALLO DE CÁMARAS DETECTADO EN STATUS!');
+                            console.log('FALLO DE CÁMARAS DETECTADO EN STATUS!');
                             handleCameraFailure();
                             return;
                         }
                         
                         // Verificar si la sesión fue cancelada por otra razón
                         if (state.isRecording && statusData.session_cancelled && !statusData.is_recording) {
-                            console.log('⚠️ Sesión cancelada externamente');
+                            console.log('Sesión cancelada externamente');
                             showMessage('La sesión fue cancelada', 'warning');
                             resetRecordingState();
                         }
                     } else {
                         // Incluso si success=false, verificar si hay fallo de cámaras
                         if (statusData.camera_failure_detected || statusData.session_cancelled_by_camera_failure) {
-                            console.log('🚨 FALLO DE CÁMARAS DETECTADO EN ERROR RESPONSE!');
+                            console.log(' FALLO DE CÁMARAS DETECTADO EN ERROR RESPONSE!');
                             handleCameraFailure();
                             return;
                         }
-                        console.log('⚠️ Status response success=false:', statusData.error);
+                        console.log('Status response success=false:', statusData.error);
                     }
                 } else {
-                    console.log('❌ Error en respuesta de status:', response.status, response.statusText);
+                    console.log('Error en respuesta de status:', response.status, response.statusText);
                 }
             } catch (error) {
-                console.error('💥 Error verificando estado:', error);
+                console.error('Error verificando estado:', error);
             }
         }, 2000); // Verificar cada 2 segundos
     }
@@ -130,7 +130,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * Manejar fallo de cámaras detectado
      */
     function handleCameraFailure() {
-        console.log('🚨🚨🚨 FALLO DE CÁMARAS DETECTADO 🚨🚨🚨');
+        console.log('FALLO DE CÁMARAS DETECTADO');
         
         // Detener polling inmediatamente
         stopStatusPolling();
@@ -145,17 +145,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         // Mostrar mensaje prominente en consola
-        console.error('🚨🔌 CANCELANDO SESIÓN POR FALLO DE CÁMARAS - DESCONECTAR Y CONECTAR EL SWITCH 🔌🚨');
+        console.error('CANCELANDO SESIÓN POR FALLO DE CÁMARAS - DESCONECTAR Y CONECTAR EL SWITCH');
         showMessage('¡FALLO DE CÁMARAS DETECTADO!', 'error');
         
         // Mostrar alert prominente al usuario
-        alert('🚨 FALLO DE CÁMARAS DETECTADO 🚨\n\n' +
+        alert('FALLO DE CÁMARAS DETECTADO\n\n' +
               'Algunas cámaras no funcionaron correctamente.\n\n' +
-              'INSTRUCCIONES IMPORTANTES:\n' +
-              '1. 🔌 Desconecta el switch de las cámaras\n' +
-              '2. ⏱️ Espera 5 segundos\n' +
-              '3. 🔌 Vuelve a conectar el switch\n' +
-              '4. 🎯 Reinicia una nueva grabación\n\n' +
+              'Instrucciones a seguir:\n' +
+              '1.  Desconecta el switch de las cámaras\n' +
+              '2.  Reinicia el servidor de flask\n' +
+              '3.  Reabre el navegador\n' +
+              '4.  Vuelve a conectar el switch\n' +
+              '5.  Reinicia una nueva grabación\n\n' +
               'La sesión ha sido cancelada automáticamente.');
         
         // Resetear estado inmediatamente
@@ -166,7 +167,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * Resetear estado de grabación
      */
     function resetRecordingState() {
-        console.log('🔄 Reseteando estado de grabación...');
+        console.log('Reseteando estado de grabación...');
         
         state.sessionId = null;
         state.patientId = null;
@@ -186,7 +187,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // Reinicializar sistema para detectar cámaras nuevamente
         setTimeout(() => {
-            console.log('🔄 Reinicializando sistema...');
+            console.log('Reinicializando sistema...');
             initializeSystem();
         }, 1000);
     }
@@ -374,12 +375,12 @@ document.addEventListener('DOMContentLoaded', () => {
     async function handleProcessRecording() {
         try {
             // Verificar estado antes de procesar
-            console.log('🔍 Verificando estado antes de procesar...');
+            console.log('Verificando estado antes de procesar...');
             const statusResponse = await fetch(API.recordingStatus);
             if (statusResponse.ok) {
                 const statusData = await statusResponse.json();
                 if (statusData.camera_failure_detected || statusData.session_cancelled_by_camera_failure) {
-                    console.log('🚨 Fallo de cámaras detectado antes de procesar!');
+                    console.log('Fallo de cámaras detectado antes de procesar!');
                     handleCameraFailure();
                     return;
                 }
@@ -478,14 +479,14 @@ document.addEventListener('DOMContentLoaded', () => {
         cancelBtn.addEventListener('click', handleCancelRecording);
         console.log('Event listener del botón de cancelar configurado');
     } else {
-        console.error(' No se encontró el botón de cancelar (cancel-btn)');
+        console.error('No se encontró el botón de cancelar (cancel-btn)');
     }
     
     if (processBtn) {
         processBtn.addEventListener('click', handleProcessRecording);
-        console.log(' Event listener del botón de procesar configurado');
+        console.log('Event listener del botón de procesar configurado');
     } else {
-        console.error(' No se encontró el botón de procesar (process-btn)');
+        console.error('No se encontró el botón de procesar (process-btn)');
     }
 
     // --- Inicialización ---

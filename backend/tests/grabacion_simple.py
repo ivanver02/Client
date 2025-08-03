@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 Script simple para grabación continua multi-cámara con Orbbec SDK.
 - Inicia grabación en todas las cámaras conectadas.
@@ -64,7 +63,7 @@ class OrbbecRecorder:
             if color_profile is None:
                 # Si no se encuentra, usar el perfil por defecto
                 color_profile = profile_list.get_default_video_stream_profile()
-                print(f"⚠️  Cámara {self.camera_id}: No se encontró el perfil {RESOLUTION}@{FPS} FPS. Usando perfil por defecto.")
+                print(f"Cámara {self.camera_id}: No se encontró el perfil {RESOLUTION}@{FPS} FPS. Usando perfil por defecto.")
             
             config.enable_stream(color_profile)
             self.pipeline.start(config)

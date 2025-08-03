@@ -2,7 +2,7 @@
 
 Esta guía documenta todos los pasos necesarios para configurar el PyOrbbecSDK en el proyecto, independientemente del código específico. Estos pasos deben realizarse **siempre** que se clone el repositorio.
 
-## 🔧 Requisitos del Sistema
+## Requisitos del Sistema
 
 ### Software necesario:
 - **Python 3.8+** (recomendado 3.10)
@@ -11,9 +11,9 @@ Esta guía documenta todos los pasos necesarios para configurar el PyOrbbecSDK e
 - **Git**
 
 ### Hardware:
-- Una o más cámaras **Orbbec Gemini 335L** conectadas por USB
+- Una o más cámaras **Orbbec Gemini 335Le** conectadas por USB
 
-## 📥 Instalación Paso a Paso
+## Instalación Paso a Paso
 
 ### 1. Clonar el repositorio del proyecto
 ```bash
@@ -68,7 +68,7 @@ python -c "from pyorbbecsdk import *; print('SDK disponible')"
 python -c "from pyorbbecsdk import *; ctx = Context(); devices = ctx.query_devices(); print(f'Cámaras detectadas: {devices.get_count()}')"
 ```
 
-## 🚨 Problemas Comunes y Soluciones
+## Problemas Comunes y Soluciones
 
 ### Error: "DLL load failed while importing pyorbbecsdk"
 
@@ -117,9 +117,9 @@ cmake --build . --config Release --verbose
 
 ### Advertencia: "Receive rtp packet timed out"
 
-**Es normal**: Estos mensajes aparecen durante el funcionamiento normal de las cámaras Orbbec Gemini 335L y no afectan la funcionalidad.
+**Es normal**: Estos mensajes aparecen durante el funcionamiento normal de las cámaras Orbbec Gemini 335Le y no afectan la funcionalidad.
 
-## 📁 Estructura de Archivos Después de la Instalación
+## Estructura de Archivos Después de la Instalación
 
 ```
 backend/sdk/pyorbbecsdk/
@@ -132,29 +132,29 @@ backend/sdk/pyorbbecsdk/
 └── sdk/                              # SDK original
 ```
 
-## 🔍 Verificación de la Instalación Correcta
+## Verificación de la Instalación Correcta
 
 ### Test 1: Importación del SDK
 ```bash
 cd backend/examples
-python -c "from pyorbbecsdk import *; print('✅ SDK importado correctamente')"
+python -c "from pyorbbecsdk import *; print('SDK importado correctamente')"
 ```
 
 **Salida esperada**:
 ```
 load extensions from C:\...\backend\sdk\pyorbbecsdk/extensions
-✅ SDK importado correctamente
+SDK importado correctamente
 ```
 
 ### Test 2: Detección de cámaras
 ```bash
-python -c "from pyorbbecsdk import *; ctx = Context(); devices = ctx.query_devices(); print(f'🔍 Cámaras detectadas: {devices.get_count()}')"
+python -c "from pyorbbecsdk import *; ctx = Context(); devices = ctx.query_devices(); print(f'Cámaras detectadas: {devices.get_count()}')"
 ```
 
 **Salida esperada** (con 3 cámaras):
 ```
 load extensions from C:\...\backend\sdk\pyorbbecsdk/extensions
-🔍 Cámaras detectadas: 3
+Cámaras detectadas: 3
 ```
 
 ### Test 3: Información de cámaras
@@ -166,19 +166,19 @@ devices = ctx.query_devices()
 for i in range(devices.get_count()):
     device = devices.get_device_by_index(i)
     info = device.get_device_info()
-    print(f'📷 Cámara {i}: {info.get_name()} - S/N: {info.get_serial_number()}')
+    print(f'Cámara {i}: {info.get_name()} - S/N: {info.get_serial_number()}')
 "
 ```
 
 **Salida esperada**:
 ```
 load extensions from C:\...\backend\sdk\pyorbbecsdk/extensions
-📷 Cámara 0: Orbbec Gemini 335Le - S/N: CPE745P0002V
-📷 Cámara 1: Orbbec Gemini 335Le - S/N: CPE745P0002B
-📷 Cámara 2: Orbbec Gemini 335Le - S/N: CPE345P0007S
+Cámara 0: Orbbec Gemini 335Le - S/N: CPE745P0002V
+Cámara 1: Orbbec Gemini 335Le - S/N: CPE745P0002B
+Cámara 2: Orbbec Gemini 335Le - S/N: CPE345P0007S
 ```
 
-## 🛠️ Comandos de Mantenimiento
+## Comandos de Mantenimiento
 
 ### Limpiar y recompilar el SDK
 ```bash
@@ -207,7 +207,7 @@ rmdir backend\examples\output /s /q
 rmdir backend\sdk\pyorbbecsdk\build /s /q
 ```
 
-## 📋 Lista de Verificación Post-Instalación
+## Lista de Verificación Post-Instalación
 
 - [ ] Python 3.8+ instalado
 - [ ] CMake disponible (`cmake --version`)
@@ -221,7 +221,7 @@ rmdir backend\sdk\pyorbbecsdk\build /s /q
 - [ ] Cámaras detectadas correctamente
 - [ ] Script de prueba ejecuta sin errores
 
-## 🔄 Proceso de Actualización del SDK
+## Proceso de Actualización del SDK
 
 Si necesitas actualizar a una versión más reciente del SDK:
 
@@ -239,7 +239,7 @@ copy build\Release\*.pyd .
 copy lib\win_x64\* . -Recurse -Force
 ```
 
-## 📞 Soporte y Diagnóstico
+## Soporte y Diagnóstico
 
 Si encuentras problemas, ejecuta este script de diagnóstico:
 
@@ -253,26 +253,26 @@ print(f"Directorio actual: {os.getcwd()}")
 
 try:
     import cv2
-    print(f"✅ OpenCV: {cv2.__version__}")
+    print(f"OpenCV: {cv2.__version__}")
 except ImportError:
-    print("❌ OpenCV no instalado")
+    print("OpenCV no instalado")
 
 try:
     import numpy as np
-    print(f"✅ NumPy: {np.__version__}")
+    print(f"NumPy: {np.__version__}")
 except ImportError:
-    print("❌ NumPy no instalado")
+    print("NumPy no instalado")
 
 try:
     sys.path.insert(0, "../sdk/pyorbbecsdk")
     from pyorbbecsdk import *
-    print("✅ PyOrbbecSDK importado")
+    print("PyOrbbecSDK importado")
     
     ctx = Context()
     devices = ctx.query_devices()
-    print(f"✅ Cámaras detectadas: {devices.get_count()}")
+    print(f"Cámaras detectadas: {devices.get_count()}")
 except Exception as e:
-    print(f"❌ Error con PyOrbbecSDK: {e}")
+    print(f"Error con PyOrbbecSDK: {e}")
 ```
 
 ---

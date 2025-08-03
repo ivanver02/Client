@@ -4,7 +4,7 @@
 
 ## Contexto del proyecto
 
-Este es un sistema de captura multi-cámara para cámaras Orbbec Gemini 335L que:
+Este es un sistema de captura multi-cámara para cámaras Orbbec Gemini 335Le que:
 - Captura video sincronizado de 3-5 cámaras simultáneamente
 - Genera chunks de video de 5 segundos en formato MP4
 - Envía los chunks a un servidor de procesamiento vía API REST

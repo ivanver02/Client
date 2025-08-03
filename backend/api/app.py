@@ -4,9 +4,8 @@ import requests
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
-from typing import Dict, Any
 
-from ..camera_manager import camera_manager, CameraInfo
+from ..camera_manager import camera_manager
 from ..video_processor import video_processor, VideoChunk
 from ..config.settings import SystemConfig, CameraConfig
 
@@ -70,7 +69,7 @@ def create_app() -> Flask:
                 try:
                     error_data = response.json()
                     if error_data.get('error') == 'CAMERA_FAILURE_DETECTED':
-                        print(f"🚨 FALLO DE CÁMARAS DETECTADO POR EL SERVIDOR 🚨")
+                        print(f"FALLO DE CÁMARAS DETECTADO POR EL SERVIDOR")
                         print(f"Mensaje: {error_data.get('message', 'Error de cámaras')}")
                         print(f"Acción requerida: {error_data.get('action_required', 'Reiniciar switch')}")
                         
@@ -80,9 +79,9 @@ def create_app() -> Flask:
                         
                         # Cancelar la sesión actual inmediatamente
                         try:
-                            print("🛑 Cancelando sesión local debido a fallo de cámaras...")
+                            print("Cancelando sesión local debido a fallo de cámaras...")
                             video_processor.cancel_current_session()
-                            print("✅ Sesión local cancelada por fallo de cámaras")
+                            print("Sesión local cancelada por fallo de cámaras")
                         except Exception as cancel_error:
                             print(f"Error cancelando sesión local: {cancel_error}")
                         
@@ -315,19 +314,19 @@ def create_app() -> Flask:
     def stop_recording():
         """Finalizar grabación"""
         try:
-            print("🛑 Procesando finalización de grabación...")
+            print("Procesando finalización de grabación...")
             final_chunks = video_processor.stop_recording()
             
             # Enviar chunks finales inmediatamente al servidor
             if final_chunks:
-                print(f"📤 Enviando {len(final_chunks)} chunks finales al servidor...")
+                print(f"Enviando {len(final_chunks)} chunks finales al servidor...")
                 for chunk in final_chunks:
                     try:
                         # Usar el mismo callback que se usa para chunks regulares
                         upload_chunk_to_server(chunk)
-                        print(f"✅ Chunk final enviado: Cámara {chunk.camera_id}, Duración: {chunk.duration_seconds:.2f}s")
+                        print(f"Chunk final enviado: Cámara {chunk.camera_id}, Duración: {chunk.duration_seconds:.2f}s")
                     except Exception as upload_error:
-                        print(f"❌ Error enviando chunk final de cámara {chunk.camera_id}: {upload_error}")
+                        print(f"Error enviando chunk final de cámara {chunk.camera_id}: {upload_error}")
             
             # Dar un momento para que se completen las subidas
             time.sleep(2)
@@ -343,11 +342,11 @@ def create_app() -> Flask:
                 }, timeout=10)
                 
                 if end_response.status_code == 200:
-                    print("✅ Sesión finalizada correctamente en el servidor (datos preservados)")
+                    print("Sesión finalizada correctamente en el servidor (datos preservados)")
                 elif end_response.status_code == 400:
-                    print("ℹ️ Info: No había sesión activa en el servidor para finalizar")
+                    print("Info: No había sesión activa en el servidor para finalizar")
                 else:
-                    print(f"⚠️ Warning: Respuesta inesperada del servidor al finalizar: {end_response.status_code}")
+                    print(f"Warning: Respuesta inesperada del servidor al finalizar: {end_response.status_code}")
             except Exception as e:
                 print(f"Error notificando fin de sesión al servidor: {e}")
             
@@ -383,11 +382,11 @@ def create_app() -> Flask:
                 }, timeout=10)
                 
                 if cancel_response.status_code == 200:
-                    print("🗑️ Sesión cancelada correctamente en el servidor (datos eliminados)")
+                    print("Sesión cancelada correctamente en el servidor (datos eliminados)")
                 elif cancel_response.status_code == 400:
-                    print("ℹ️ Info: No había sesión activa en el servidor para cancelar")
+                    print("Info: No había sesión activa en el servidor para cancelar")
                 else:
-                    print(f"⚠️ Warning: Respuesta inesperada del servidor al cancelar: {cancel_response.status_code}")
+                    print(f"Warning: Respuesta inesperada del servidor al cancelar: {cancel_response.status_code}")
             except Exception as e:
                 print(f"Error notificando cancelación al servidor: {e}")
             

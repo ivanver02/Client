@@ -142,7 +142,7 @@ echo INSTALACION COMPLETADA EXITOSAMENTE
 echo ========================================
 echo.
 echo Próximos pasos:
-echo 1. Conectar las cámaras Orbbec Gemini 335L
+echo 1. Conectar las cámaras Orbbec Gemini 335Le
 echo 2. Ejecutar: cd backend\examples
 echo 3. Ejecutar: python test_multicamera.py
 echo.

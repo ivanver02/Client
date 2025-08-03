@@ -1,12 +1,9 @@
 # Gestor de cámaras para captura multi-cámara sincronizada
 # Emplea el SDK de Orbbec, si se emplean cámaras de otra marca, se debe implementar un gestor específico para estas
-import os
-import threading
-import time
 import cv2
 import numpy as np
 from datetime import datetime
-from typing import List, Dict, Optional, Callable
+from typing import List, Dict, Optional
 from dataclasses import dataclass
 
 # Importación del SDK de Orbbec
@@ -33,7 +30,7 @@ class CameraInfo:
 
 
 class OrbbecCamera:
-    """Controlador para una cámara Orbbec real"""
+    """Controlador para una cámara Orbbec"""
     
     def __init__(self, device, camera_id: int, config: CameraConfig):
         self.device = device
@@ -42,10 +39,6 @@ class OrbbecCamera:
         self.pipeline = None
         self.is_recording = False
         self.color_profile = None
-        self.recording_thread = None
-        self.video_writer = None
-        self.frames_written = 0
-        self.start_time = None
         
     def initialize(self) -> bool:
         """Inicializar la cámara"""
@@ -96,6 +89,29 @@ class OrbbecCamera:
         print(f"Cámara {self.camera_id}: Modo grabación desactivado")
         return True
     
+    def _frame_to_bgr_image(self, frame) -> Optional[np.ndarray]:
+        """Convertir frame de Orbbec a imagen BGR para OpenCV"""
+        try:
+            width = frame.get_width()
+            height = frame.get_height()
+            color_format = frame.get_format()
+            data = np.asanyarray(frame.get_data())
+            
+            if color_format == OBFormat.RGB:
+                image = np.reshape(data, (height, width, 3))
+                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+            elif color_format == OBFormat.BGR:
+                image = np.reshape(data, (height, width, 3))
+            else:
+                print(f"Formato de color no soportado: {color_format}")
+                return None
+                
+            return image
+            
+        except Exception as e:
+            print(f"Error convirtiendo frame: {e}")
+            return None
+    
     def get_frame(self) -> Optional[np.ndarray]:
         """Obtener frame actual de la cámara (para preview)"""
         if not self.pipeline:
@@ -131,34 +147,11 @@ class OrbbecCamera:
             traceback.print_exc()
             return None
     
-    def get_real_fps(self) -> int:
+    def get_real_fps(self) -> int: # Se emplea en _create_new_writers en video_processor.py
         """Obtener el FPS real del perfil de la cámara"""
         if self.color_profile:
             return self.color_profile.get_fps()
         return 30  # FPS por defecto
-    
-    def _frame_to_bgr_image(self, frame) -> Optional[np.ndarray]:
-        """Convertir frame de Orbbec a imagen BGR para OpenCV"""
-        try:
-            width = frame.get_width()
-            height = frame.get_height()
-            color_format = frame.get_format()
-            data = np.asanyarray(frame.get_data())
-            
-            if color_format == OBFormat.RGB:
-                image = np.reshape(data, (height, width, 3))
-                image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
-            elif color_format == OBFormat.BGR:
-                image = np.reshape(data, (height, width, 3))
-            else:
-                print(f"Formato de color no soportado: {color_format}")
-                return None
-                
-            return image
-            
-        except Exception as e:
-            print(f"Error convirtiendo frame: {e}")
-            return None
     
     def cleanup(self):
         """Limpiar recursos de la cámara"""
@@ -262,7 +255,7 @@ class CameraManager:
         
         return self.cameras[camera_id].get_frame()
     
-    def start_recording_all(self, session_id: str, patient_id: str) -> bool:
+    def start_recording_all(self) -> bool:
         """Iniciar modo de grabación en todas las cámaras"""
         if self.recording_active:
             print("Ya hay una grabación en curso")

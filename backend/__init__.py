@@ -1,3 +1,2 @@
-"""
-Módulo inicializador para backend
-"""
+# Módulo inicializador para backend
+

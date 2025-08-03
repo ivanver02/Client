@@ -32,7 +32,7 @@ main > div {
     border: 1px solid #b3d9ff; /* Borde azul claro */
 }
 
-/* Clase especial para la sección de controles - sin fondo ni borde */
+/* Clase especial para la sección de controles */
 .controls-section {
     margin-bottom: 2rem;
     padding: 1.5rem;

@@ -1,9 +1,5 @@
-"""
-Configuración principal del sistema de cámaras Orbbec
-"""
 import os
 from dataclasses import dataclass
-from typing import Optional
 
 
 @dataclass
@@ -21,8 +17,6 @@ class RecordingConfig:
     """Configuración para grabación"""
     chunk_duration_seconds: int = 5
     output_format: str = "mp4"
-    video_codec: str = "mp4v"
-    quality: int = 90  # 0-100
 
 
 @dataclass
