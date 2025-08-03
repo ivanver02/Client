@@ -178,35 +178,6 @@ Cámara 1: Orbbec Gemini 335Le - S/N: CPE745P0002B
 Cámara 2: Orbbec Gemini 335Le - S/N: CPE345P0007S
 ```
 
-## Comandos de Mantenimiento
-
-### Limpiar y recompilar el SDK
-```bash
-cd backend/sdk/pyorbbecsdk
-rmdir build /s /q
-mkdir build
-cd build
-cmake ..
-cmake --build . --config Release
-cd ..
-copy build\Release\*.pyd .
-```
-
-### Verificar estado de cámaras
-```bash
-cd backend/examples
-python test_multicamera.py
-```
-
-### Limpiar archivos temporales
-```bash
-# Limpiar chunks de video generados
-rmdir backend\examples\output /s /q
-
-# Limpiar archivos de compilación
-rmdir backend\sdk\pyorbbecsdk\build /s /q
-```
-
 ## Lista de Verificación Post-Instalación
 
 - [ ] Python 3.8+ instalado
@@ -219,7 +190,6 @@ rmdir backend\sdk\pyorbbecsdk\build /s /q
 - [ ] DLLs copiadas al directorio raíz del SDK
 - [ ] SDK se importa sin errores
 - [ ] Cámaras detectadas correctamente
-- [ ] Script de prueba ejecuta sin errores
 
 ## Proceso de Actualización del SDK
 
@@ -237,43 +207,6 @@ cmake --build . --config Release
 cd ..
 copy build\Release\*.pyd .
 copy lib\win_x64\* . -Recurse -Force
-```
-
-## Soporte y Diagnóstico
-
-Si encuentras problemas, ejecuta este script de diagnóstico:
-
-```python
-import sys
-import os
-
-print("=== DIAGNÓSTICO DEL SISTEMA ===")
-print(f"Python: {sys.version}")
-print(f"Directorio actual: {os.getcwd()}")
-
-try:
-    import cv2
-    print(f"OpenCV: {cv2.__version__}")
-except ImportError:
-    print("OpenCV no instalado")
-
-try:
-    import numpy as np
-    print(f"NumPy: {np.__version__}")
-except ImportError:
-    print("NumPy no instalado")
-
-try:
-    sys.path.insert(0, "../sdk/pyorbbecsdk")
-    from pyorbbecsdk import *
-    print("PyOrbbecSDK importado")
-    
-    ctx = Context()
-    devices = ctx.query_devices()
-    print(f"Cámaras detectadas: {devices.get_count()}")
-except Exception as e:
-    print(f"Error con PyOrbbecSDK: {e}")
-```
 
 ---
 
