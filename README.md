@@ -2,6 +2,8 @@
 
 Este proyecto es el backend y frontend para la gestión, grabación y procesamiento de video multi-cámara, desarrollado por la Universidad de Málaga y el Hospital Costa del Sol. El sistema permite la captura sincronizada de video, gestión de sesiones y control de cámaras Orbbec, así como la interacción con el usuario a través de una interfaz web.
 
+Este proyecto (Code) está diseñado para funcionar conjuntamente con el repositorio Server, que se encarga del procesamiento avanzado de los videos, detección de keypoints y reconstrucción 3D. Code gestiona la captura, grabación y envío de video multi-cámara. Ambos forman el flujo completo de análisis de marcha, permitiendo una integración clínica e investigadora robusta. Para el funcionamiento completo, consulta y utiliza ambos repositorios.
+
 ---
 ## Descripción del proyecto
 
@@ -120,8 +122,12 @@ La descripción detallada de las clases y métodos principales se encuentra en [
 ## Licencia
 
 Este proyecto está licenciado bajo Apache License 2.0. Consulta el archivo `LICENSE.md` para más detalles.
+Este proyecto está licenciado bajo Apache License 2.0. Consulta el archivo [`LICENSE.md`](LICENSE.md) para más detalles.
 
 ---
 ## Créditos
 
+Desarrollado por la Universidad de Málaga y el Hospital Costa del Sol.
+
+---
 Desarrollado por la Universidad de Málaga y el Hospital Costa del Sol.
