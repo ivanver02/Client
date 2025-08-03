@@ -2,7 +2,7 @@
 
 Este proyecto es el backend y frontend para la gestión, grabación y procesamiento de video multi-cámara, desarrollado por la Universidad de Málaga y el Hospital Costa del Sol. El sistema permite la captura sincronizada de video, gestión de sesiones y control de cámaras Orbbec, así como la interacción con el usuario a través de una interfaz web.
 
-Este proyecto (Code) está diseñado para funcionar conjuntamente con el repositorio [Server](../Server/README.md), que se encarga del procesamiento avanzado de los videos, detección de keypoints y reconstrucción 3D. Code gestiona la captura, grabación y envío de video multi-cámara. Ambos forman el flujo completo de análisis de marcha, permitiendo una integración clínica e investigadora robusta. Para el funcionamiento completo, consulta y utiliza ambos repositorios.
+Este proyecto (Code) está diseñado para funcionar conjuntamente con el repositorio Server, que se encarga del procesamiento avanzado de los videos, detección de keypoints y reconstrucción 3D. Code gestiona la captura, grabación y envío de video multi-cámara. Ambos forman el flujo completo de análisis de marcha, permitiendo una integración clínica e investigadora robusta. Para el funcionamiento completo, consulta y utiliza ambos repositorios.
 
 ---
 ## Descripción del proyecto
@@ -14,34 +14,34 @@ El sistema gestiona la detección y control de cámaras Orbbec Gemini 335Le, la 
 
 ```
 Code/
-├── [main.py](main.py)
-├── [instalar.bat](instalar.bat)
-├── [requirements.txt](requirements.txt)
+├── main.py
+├── instalar.bat
+├── requirements.txt
 ├── backend/
 │   ├── api/
-│   │   ├── [app.py](backend/api/app.py)
-│   │   └── [__init__.py](backend/api/__init__.py)
+│   │   ├── app.py
+│   │   └── __init__.py
 │   ├── camera_manager/
-│   │   ├── [camera_manager.py](backend/camera_manager/camera_manager.py)
-│   │   └── [__init__.py](backend/camera_manager/__init__.py)
+│   │   ├── camera_manager.py
+│   │   └── __init__.py
 │   ├── config/
-│   │   └── [settings.py](backend/config/settings.py)
+│   │   └── settings.py
 │   ├── sdk/
 │   │   └── pyorbbecsdk/
 │   ├── tests/
-│   │   └── [grabacion_simple.py](backend/tests/grabacion_simple.py)
+│   │   └── grabacion_simple.py
 │   ├── video_processor/
-│   │   ├── [video_processor.py](backend/video_processor/video_processor.py)
-│   │   └── [__init__.py](backend/video_processor/__init__.py)
-│   └── [__init__.py](backend/__init__.py)
+│   │   ├── video_processor.py
+│   │   └── __init__.py
+│   └── __init__.py
 ├── docs/
-│   ├── [INSTALACION_SDK.md](docs/INSTALACION_SDK.md)
-│   └── [main_classes.md](docs/main_classes.md)
+│   ├── INSTALACION_SDK.md
+│   └── main_classes.md
 ├── frontend/
-│   ├── [index.html](frontend/index.html)
-│   ├── [script.js](frontend/script.js)
-│   └── [style.css](frontend/style.css)
-└── [.gitignore](.gitignore)
+│   ├── index.html
+│   ├── script.js
+│   └── style.css
+└── .gitignore
 ```
 
 ---
