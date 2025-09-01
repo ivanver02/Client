@@ -155,7 +155,7 @@ class VideoProcessor:
             self.recording_active = True
             
             # Iniciar grabación en cámaras
-            if not camera_manager.start_recording_all(self.session_id, self.patient_id):
+            if not camera_manager.start_recording_all():
                 self.recording_active = False
                 return False
             
@@ -324,7 +324,7 @@ class VideoProcessor:
                 output_path = self._generate_chunk_path(camera_id)
                 print(f"Generando archivo para cámara {camera_id}: {output_path}")
                 
-                writer = VideoWriter(camera_id, output_path, self.config)
+                writer = VideoWriter(camera_id, output_path)
                 
                 # Obtener un frame para determinar dimensiones
                 frame = camera_manager.get_frame(camera_id)
