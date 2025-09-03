@@ -490,7 +490,8 @@ def create_app() -> Flask:
                 'success': False,
                 'error': str(e)
             }), 500
-
+    # IMPORTANTE: devolver la instancia de Flask
+    return app
 
 def run_server(): # Ejecuta el servidor Flask
     
