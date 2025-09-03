@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const recordingControls = document.getElementById('recording-controls');
         const patientIdInput = document.getElementById('patient-id');
         const sessionIdInput = document.getElementById('session-id');
-        const viewVideosBtn = document.getElementById('view-videos-btn');
+    const viewReconstructionBtn = document.getElementById('view-reconstruction-btn');
         
         // Verificar que todos los elementos existan
         console.log(' Verificando elementos del DOM:');
@@ -21,7 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('- recordingControls:', recordingControls);
         console.log('- patientIdInput:', patientIdInput);
         console.log('- sessionIdInput:', sessionIdInput);
-        console.log('- viewVideosBtn:', viewVideosBtn);
+    console.log('- viewReconstructionBtn:', viewReconstructionBtn);
 
     // --- Estado inicial de la aplicación ---
     let state = {
@@ -43,8 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
         startRecording: '/api/recording/start',
         stopRecording: '/api/recording/stop',
         cancelRecording: '/api/recording/cancel',
-        recordingStatus: '/api/recording/status',
-        annotatedVideoFile: '/api/annotated_videos/file'
+        recordingStatus: '/api/recording/status'
     };
 
     // --- Log de ayuda ---
@@ -195,8 +194,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         toggleRecordingControls(false);
         
-        // Ocultar botón de ver videos
-        viewVideosBtn.classList.add('hidden');
+    // Nada que ocultar para reconstrucción (siempre visible)
 
         // Reinicializar sistema para detectar cámaras nuevamente
         setTimeout(() => {
@@ -430,37 +428,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function startAnnotatedVideoCheck(patientId, sessionId) {
-        if (state.annotatedVideoCheckInterval) {
-            clearInterval(state.annotatedVideoCheckInterval);
-        }
-        
+        // Solo guardar los identificadores; no es necesario polling ahora
         state.lastCheckedPatientId = patientId;
         state.lastCheckedSessionId = sessionId;
-
-        showMessage(`Iniciando verificación de videos anotados para paciente ${patientId}, sesión ${sessionId}`);
-
-        state.annotatedVideoCheckInterval = setInterval(async () => {
-            try {
-                // Asumimos 3 cámaras, verificamos si el video de cada una existe
-                const checks = [0, 1, 2].map(camId => 
-                    fetch(`${API.annotatedVideoFile}?patient_id=${patientId}&session_id=${sessionId}&camera_id=${camId}&chunk_number=0`, { method: 'HEAD' })
-                );
-                
-                const responses = await Promise.all(checks);
-                const allOk = responses.every(res => res.ok);
-
-                if (allOk) {
-                    showMessage('¡Todos los videos anotados están listos!', 'success');
-                    viewVideosBtn.classList.remove('hidden');
-                    clearInterval(state.annotatedVideoCheckInterval);
-                    state.annotatedVideoCheckInterval = null;
-                } else {
-                    showMessage('Esperando videos anotados...');
-                }
-            } catch (error) {
-                showMessage(`Error verificando videos: ${error.message}`, 'error');
-            }
-        }, 5000); // Verificar cada 5 segundos
+        showMessage(`Modo primer chunk: se asume que los videos estarán disponibles en reconstrucción.`);
     }
 
 
@@ -497,18 +468,17 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('No se encontró el botón de procesar (process-btn)');
     }
 
-    if (viewVideosBtn) {
-        viewVideosBtn.addEventListener('click', () => {
-            if (state.lastCheckedPatientId && state.lastCheckedSessionId) {
-                const url = `/videos/view?patient_id=${state.lastCheckedPatientId}&session_id=${state.lastCheckedSessionId}&chunk_number=0`;
-                window.open(url, '_blank');
-            } else {
-                showMessage('No hay información de sesión para ver los videos.', 'error');
-            }
+    if (viewReconstructionBtn) {
+        viewReconstructionBtn.addEventListener('click', () => {
+            const patientId = patientIdInput.value.trim() || state.patientId || '1';
+            const sessionId = sessionIdInput.value.trim() || state.sessionId || '1';
+            // La URL ahora apunta a un archivo dentro de la carpeta 'frontend'
+            const url = `reconstruction.html?patient_id=${patientId}&session_id=${sessionId}`;
+            window.open(url, '_blank');
         });
-        console.log('Event listener del botón de ver videos configurado');
+        console.log('Event listener del botón de reconstrucción configurado');
     } else {
-        console.error('No se encontró el botón de ver videos (view-videos-btn)');
+        console.error('No se encontró el botón de reconstrucción (view-reconstruction-btn)');
     }
 
     // --- Inicialización ---
