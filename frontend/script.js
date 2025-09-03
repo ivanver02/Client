@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const recordingControls = document.getElementById('recording-controls');
         const patientIdInput = document.getElementById('patient-id');
         const sessionIdInput = document.getElementById('session-id');
+        const viewVideosBtn = document.getElementById('view-videos-btn');
         
         // Verificar que todos los elementos existan
         console.log(' Verificando elementos del DOM:');
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('- recordingControls:', recordingControls);
         console.log('- patientIdInput:', patientIdInput);
         console.log('- sessionIdInput:', sessionIdInput);
+        console.log('- viewVideosBtn:', viewVideosBtn);
 
     // --- Estado inicial de la aplicación ---
     let state = {
@@ -27,7 +29,10 @@ document.addEventListener('DOMContentLoaded', () => {
         isRecording: false,
         sessionId: null,
         patientId: null,
-        statusPollingInterval: null //--- Esto es para comprobar periódicamente si han fallado las cámaras
+        statusPollingInterval: null, //--- Esto es para comprobar periódicamente si han fallado las cámaras
+        annotatedVideoCheckInterval: null,
+        lastCheckedPatientId: null,
+        lastCheckedSessionId: null
     };
 
     // --- API Endpoints ---
@@ -38,7 +43,8 @@ document.addEventListener('DOMContentLoaded', () => {
         startRecording: '/api/recording/start',
         stopRecording: '/api/recording/stop',
         cancelRecording: '/api/recording/cancel',
-        recordingStatus: '/api/recording/status'
+        recordingStatus: '/api/recording/status',
+        annotatedVideoFile: '/api/annotated_videos/file'
     };
 
     // --- Log de ayuda ---
@@ -124,6 +130,10 @@ document.addEventListener('DOMContentLoaded', () => {
             clearInterval(state.statusPollingInterval);
             state.statusPollingInterval = null;
         }
+        if (state.annotatedVideoCheckInterval) {
+            clearInterval(state.annotatedVideoCheckInterval);
+            state.annotatedVideoCheckInterval = null;
+        }
     }
 
     /**
@@ -185,6 +195,9 @@ document.addEventListener('DOMContentLoaded', () => {
         
         toggleRecordingControls(false);
         
+        // Ocultar botón de ver videos
+        viewVideosBtn.classList.add('hidden');
+
         // Reinicializar sistema para detectar cámaras nuevamente
         setTimeout(() => {
             console.log('Reinicializando sistema...');
@@ -374,49 +387,27 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function handleProcessRecording() {
         try {
-            // Verificar estado antes de procesar
-            console.log('Verificando estado antes de procesar...');
-            const statusResponse = await fetch(API.recordingStatus);
-            if (statusResponse.ok) {
-                const statusData = await statusResponse.json();
-                if (statusData.camera_failure_detected || statusData.session_cancelled_by_camera_failure) {
-                    console.log('Fallo de cámaras detectado antes de procesar!');
-                    handleCameraFailure();
-                    return;
-                }
-            }
-            
             showMessage('Finalizando grabación...');
-            
             processBtn.disabled = true;
-            processBtn.textContent = "Procesando...";
-            
-            const response = await fetch(API.stopRecording, { 
-                method: 'POST' 
-            });
-            
+            processBtn.textContent = 'Finalizando...';
+
+            const response = await fetch(API.stopRecording, { method: 'POST' });
             if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `Error del servidor: ${response.status}`);
+                throw new Error(`Error finalizando grabación: ${response.statusText}`);
             }
             
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.error || 'Error al finalizar grabación');
-            }
+            const result = await response.json();
+            showMessage(`Grabación finalizada. Session ID: ${result.session_id}. Chunks finales: ${result.final_chunks_count}`);
             
-            showMessage(`Grabación finalizada. Chunks procesados: ${data.final_chunks_count || 0}`, 'success');
-            alert("¡Grabación finalizada y procesada con éxito!");
-            
-            // Reset state usando la nueva función
-            resetRecordingState();
-            
+            // Iniciar polling para videos anotados
+            startAnnotatedVideoCheck(state.patientId, state.sessionId);
+
         } catch (error) {
-            showMessage(`Error al procesar: ${error.message}`, 'error');
-            alert(`Hubo un problema al procesar: ${error.message}`);
+            showMessage(`Error al finalizar: ${error.message}`, 'error');
         } finally {
+            toggleRecordingControls(false);
             processBtn.disabled = false;
-            processBtn.textContent = "Procesar";
+            processBtn.textContent = 'Finalizar y Procesar';
         }
     }
 
@@ -425,36 +416,53 @@ document.addEventListener('DOMContentLoaded', () => {
      */
     async function handleCancelRecording() {
         try {
-            if (!confirm('¿Está seguro de que desea cancelar la grabación? Se perderán todos los datos.')) {
-                return;
-            }
-            
             showMessage('Cancelando grabación...');
+            const response = await fetch(API.cancelRecording, { method: 'POST' });
+            if (!response.ok) throw new Error('Error cancelando grabación');
             
-            const response = await fetch(API.cancelRecording, { 
-                method: 'POST' 
-            });
-            
-            if (!response.ok) {
-                const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `Error del servidor: ${response.status}`);
-            }
-            
-            const data = await response.json();
-            if (!data.success) {
-                throw new Error(data.error || 'Error al cancelar grabación');
-            }
-            
-            showMessage('Grabación cancelada exitosamente', 'success');
-            
-            // Reset state usando la nueva función
-            resetRecordingState();
-            
+            const result = await response.json();
+            showMessage(`Grabación cancelada. Session ID: ${result.session_id}`);
         } catch (error) {
             showMessage(`Error al cancelar: ${error.message}`, 'error');
-            alert(`Hubo un problema al cancelar: ${error.message}`);
+        } finally {
+            toggleRecordingControls(false);
         }
     }
+
+    function startAnnotatedVideoCheck(patientId, sessionId) {
+        if (state.annotatedVideoCheckInterval) {
+            clearInterval(state.annotatedVideoCheckInterval);
+        }
+        
+        state.lastCheckedPatientId = patientId;
+        state.lastCheckedSessionId = sessionId;
+
+        showMessage(`Iniciando verificación de videos anotados para paciente ${patientId}, sesión ${sessionId}`);
+
+        state.annotatedVideoCheckInterval = setInterval(async () => {
+            try {
+                // Asumimos 3 cámaras, verificamos si el video de cada una existe
+                const checks = [0, 1, 2].map(camId => 
+                    fetch(`${API.annotatedVideoFile}?patient_id=${patientId}&session_id=${sessionId}&camera_id=${camId}&chunk_number=0`, { method: 'HEAD' })
+                );
+                
+                const responses = await Promise.all(checks);
+                const allOk = responses.every(res => res.ok);
+
+                if (allOk) {
+                    showMessage('¡Todos los videos anotados están listos!', 'success');
+                    viewVideosBtn.classList.remove('hidden');
+                    clearInterval(state.annotatedVideoCheckInterval);
+                    state.annotatedVideoCheckInterval = null;
+                } else {
+                    showMessage('Esperando videos anotados...');
+                }
+            } catch (error) {
+                showMessage(`Error verificando videos: ${error.message}`, 'error');
+            }
+        }, 5000); // Verificar cada 5 segundos
+    }
+
 
     // --- Event Listeners ---
     console.log('Configurando event listeners...');
@@ -487,6 +495,20 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('Event listener del botón de procesar configurado');
     } else {
         console.error('No se encontró el botón de procesar (process-btn)');
+    }
+
+    if (viewVideosBtn) {
+        viewVideosBtn.addEventListener('click', () => {
+            if (state.lastCheckedPatientId && state.lastCheckedSessionId) {
+                const url = `/videos/view?patient_id=${state.lastCheckedPatientId}&session_id=${state.lastCheckedSessionId}&chunk_number=0`;
+                window.open(url, '_blank');
+            } else {
+                showMessage('No hay información de sesión para ver los videos.', 'error');
+            }
+        });
+        console.log('Event listener del botón de ver videos configurado');
+    } else {
+        console.error('No se encontró el botón de ver videos (view-videos-btn)');
     }
 
     // --- Inicialización ---

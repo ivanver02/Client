@@ -1,7 +1,7 @@
 import os
 import time
 import requests
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, render_template_string
 from flask_cors import CORS
 from datetime import datetime
 
@@ -32,6 +32,78 @@ def create_app() -> Flask:
     def serve_static(path):
         """Servir otros archivos estáticos (JS, CSS, etc.)"""
         return send_from_directory(app.static_folder, path)
+
+    # Almacenamiento de videos anotados
+    annotated_base = os.path.join(os.path.dirname(__file__), '..', 'data', 'annotated_videos')
+    os.makedirs(annotated_base, exist_ok=True)
+
+    # Memoria de uploads por sesión para saber cuándo están todos
+    annotated_sessions = {}
+
+    @app.route('/api/annotated_videos/upload', methods=['POST'])
+    def upload_annotated_video():
+        try:
+            patient_id = str(request.form.get('patient_id'))
+            session_id = str(request.form.get('session_id'))
+            camera_id = str(request.form.get('camera_id'))
+            chunk_number = str(request.form.get('chunk_number', '0'))
+            f = request.files.get('file')
+            if not all([patient_id, session_id, camera_id, f]):
+                return jsonify({'success': False, 'error': 'Parametros incompletos'}), 400
+            out_dir = os.path.join(annotated_base, f"patient{patient_id}", f"session{session_id}", f"camera{camera_id}")
+            os.makedirs(out_dir, exist_ok=True)
+            out_path = os.path.join(out_dir, f"{chunk_number}.mp4")
+            f.save(out_path)
+            key = (patient_id, session_id, chunk_number)
+            sess = annotated_sessions.setdefault(key, set())
+            sess.add(camera_id)
+            return jsonify({'success': True, 'stored': out_path, 'cameras_received': list(sess)})
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/videos/view')
+    def view_annotated_videos():
+        patient_id = request.args.get('patient_id')
+        session_id = request.args.get('session_id')
+        chunk_number = request.args.get('chunk_number', '0')
+        if not patient_id or not session_id:
+            return 'Faltan parametros', 400
+        base_dir = os.path.join(annotated_base, f"patient{patient_id}", f"session{session_id}")
+        cameras = []
+        if os.path.isdir(base_dir):
+            for d in sorted(os.listdir(base_dir)):
+                if d.startswith('camera'):
+                    cam_id = d.replace('camera','')
+                    vid_path = os.path.join(base_dir, d, f"{chunk_number}.mp4")
+                    if os.path.exists(vid_path):
+                        rel = os.path.relpath(vid_path, app.static_folder)
+                        # Servir directamente con ruta absoluta vía send_from_directory fallback
+                        cameras.append({'id': cam_id, 'path': f"/api/annotated_videos/file?patient_id={patient_id}&session_id={session_id}&camera_id={cam_id}&chunk_number={chunk_number}"})
+        tmpl = """
+        <!doctype html><html lang='es'><head><meta charset='utf-8'><title>Videos Anotados</title>
+        <style>body{font-family:Arial;background:#f0f8ff;margin:0;padding:20px;}h1{color:#005a9c;text-align:center;} .grid{display:flex;flex-wrap:wrap;gap:20px;justify-content:center;} .vidbox{background:#fff;border:1px solid #b3d9ff;border-radius:10px;padding:10px;box-shadow:0 4px 12px rgba(0,0,0,.1);} video{width:320px;height:auto;border-radius:6px;background:#000;}</style>
+        </head><body>
+        <h1>Videos Anotados - Paciente {{patient_id}} / Sesión {{session_id}}</h1>
+        <div class='grid'>
+        {% for cam in cameras %}
+          <div class='vidbox'>
+            <h3>Cámara {{cam.id}}</h3>
+            <video src='{{cam.path}}' controls autoplay muted></video>
+          </div>
+        {% endfor %}
+        </div>
+        </body></html>
+        """
+        return render_template_string(tmpl, patient_id=patient_id, session_id=session_id, cameras=cameras)
+
+    @app.route('/api/annotated_videos/file')
+    def get_annotated_video_file():
+        patient_id = request.args.get('patient_id')
+        session_id = request.args.get('session_id')
+        camera_id = request.args.get('camera_id')
+        chunk_number = request.args.get('chunk_number','0')
+        path = os.path.join(annotated_base, f"patient{patient_id}", f"session{session_id}", f"camera{camera_id}")
+        return send_from_directory(path, f"{chunk_number}.mp4")
 
     # Callback para envío de chunks al servidor
     def upload_chunk_to_server(chunk: VideoChunk):
@@ -479,7 +551,7 @@ def run_server(): # Ejecuta el servidor Flask
     print(f"Servidor de procesamiento: {SystemConfig.SERVER.base_url}")
 
     app.run(
-        host=SystemConfig.LOCAL_API_HOST,
+    host="0.0.0.0",  # Escuchar en todas las interfaces para permitir acceso remoto
         port=SystemConfig.LOCAL_API_PORT,
         debug=True,
         threaded=True
