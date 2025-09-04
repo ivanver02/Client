@@ -1,7 +1,9 @@
 import os
 import time
 import requests
-from flask import Flask, request, jsonify, send_from_directory, render_template_string
+import mimetypes
+import re
+from flask import Flask, request, jsonify, send_from_directory, send_file, make_response
 from flask_cors import CORS
 from datetime import datetime
 
@@ -14,6 +16,11 @@ camera_failure_detected = False
 
 
 def create_app() -> Flask:
+    # Configurar MIME types para video
+    mimetypes.add_type('video/mp4', '.mp4')
+    mimetypes.add_type('video/webm', '.webm')
+    mimetypes.add_type('video/ogg', '.ogv')
+    
     # Ajustar la ruta para que apunte a la carpeta 'frontend' en el directorio raíz
     frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend'))
     app = Flask(__name__, static_folder=frontend_dir)
@@ -30,7 +37,56 @@ def create_app() -> Flask:
 
     @app.route('/<path:path>')
     def serve_static(path):
-        """Servir otros archivos estáticos (JS, CSS, etc.)"""
+        """Servir otros archivos estáticos (JS, CSS, videos, etc.)"""
+        file_path = os.path.join(app.static_folder, path)
+        
+        # Si es un archivo de video, usar headers específicos con Range requests
+        if path.endswith(('.mp4', '.webm', '.ogv', '.avi', '.mov')):
+            if os.path.exists(file_path):
+                # Obtener el tamaño del archivo
+                file_size = os.path.getsize(file_path)
+                
+                # Verificar si es una solicitud de rango (Range request)
+                range_header = request.headers.get('Range')
+                
+                if range_header:
+                    # Parsear el header Range
+                    byte_start = 0
+                    byte_end = file_size - 1
+                    
+                    range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+                    if range_match:
+                        byte_start = int(range_match.group(1))
+                        if range_match.group(2):
+                            byte_end = int(range_match.group(2))
+                    
+                    # Asegurar que no exceda el tamaño del archivo
+                    byte_end = min(byte_end, file_size - 1)
+                    
+                    # Leer el rango específico
+                    with open(file_path, 'rb') as f:
+                        f.seek(byte_start)
+                        data = f.read(byte_end - byte_start + 1)
+                    
+                    # Crear respuesta parcial (206)
+                    response = make_response(data)
+                    response.status_code = 206
+                    response.headers['Content-Range'] = f'bytes {byte_start}-{byte_end}/{file_size}'
+                    response.headers['Accept-Ranges'] = 'bytes'
+                    response.headers['Content-Length'] = str(len(data))
+                    response.headers['Content-Type'] = 'video/mp4' if path.endswith('.mp4') else 'video/webm'
+                    return response
+                else:
+                    # Respuesta completa con headers para video
+                    response = send_file(file_path, 
+                                       mimetype='video/mp4' if path.endswith('.mp4') else 'video/webm',
+                                       as_attachment=False,
+                                       conditional=True)
+                    response.headers['Accept-Ranges'] = 'bytes'
+                    response.headers['Content-Length'] = str(file_size)
+                    response.headers['Cache-Control'] = 'no-cache'
+                    return response
+        
         return send_from_directory(app.static_folder, path)
 
     # Almacenamiento de videos anotados
@@ -39,6 +95,211 @@ def create_app() -> Flask:
 
     # Memoria de uploads por sesión para saber cuándo están todos
     annotated_sessions = {}
+
+    @app.route('/debug/video-info')
+    def video_info():
+        """Debug info del video"""
+        video_path = os.path.join(frontend_dir, 'data', 'annotated_videos', 'patient34', 'session20', 'camera0', '0.mp4')
+        
+        info = {
+            'path': video_path,
+            'exists': os.path.exists(video_path),
+            'size': os.path.getsize(video_path) if os.path.exists(video_path) else 0,
+            'frontend_dir': frontend_dir,
+            'url_path': 'data/annotated_videos/patient34/session20/camera0/0.mp4'
+        }
+        
+        # Intentar obtener info del códec si está disponible
+        try:
+            import subprocess
+            if os.path.exists(video_path):
+                # Usar ffprobe si está disponible
+                try:
+                    result = subprocess.run([
+                        'ffprobe', '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', video_path
+                    ], capture_output=True, text=True, timeout=10)
+                    
+                    if result.returncode == 0:
+                        import json
+                        probe_data = json.loads(result.stdout)
+                        info['codec_info'] = probe_data
+                except:
+                    info['codec_info'] = 'ffprobe no disponible'
+        except:
+            info['codec_info'] = 'Error obteniendo info de códec'
+        
+        return jsonify(info)
+
+    @app.route('/api/convert-video', methods=['POST'])
+    def convert_video():
+        """Convertir video a formato web-compatible"""
+        try:
+            data = request.get_json()
+            input_path = data.get('input_path')
+            patient_id = data.get('patient_id', 'patient34')
+            session_id = data.get('session_id', 'session20') 
+            camera_id = data.get('camera_id', 'camera0')
+            
+            if not input_path:
+                return jsonify({'success': False, 'error': 'input_path requerido'}), 400
+            
+            # Ruta completa del archivo original
+            original_file = os.path.join(frontend_dir, input_path)
+            
+            if not os.path.exists(original_file):
+                return jsonify({'success': False, 'error': 'Archivo no encontrado'}), 404
+            
+            # Crear directorio para archivos convertidos
+            converted_dir = os.path.join(frontend_dir, 'data', 'converted_videos', patient_id, session_id, camera_id)
+            os.makedirs(converted_dir, exist_ok=True)
+            
+            # Archivo de salida
+            output_file = os.path.join(converted_dir, '0_converted.mp4')
+            relative_output = f'data/converted_videos/{patient_id}/{session_id}/{camera_id}/0_converted.mp4'
+            
+            # Usar ffmpeg para convertir a formato web-compatible
+            import subprocess
+            
+            try:
+                # Comando ffmpeg optimizado para web
+                cmd = [
+                    'ffmpeg', 
+                    '-i', original_file,
+                    '-c:v', 'libx264',           # Codec H.264
+                    '-profile:v', 'baseline',    # Perfil baseline (más compatible)
+                    '-level', '3.0',             # Nivel 3.0 (compatible con móviles)
+                    '-pix_fmt', 'yuv420p',       # Formato de pixel compatible
+                    '-c:a', 'aac',               # Codec audio AAC
+                    '-b:a', '128k',              # Bitrate audio
+                    '-movflags', '+faststart',   # Mueve metadatos al inicio (clave!)
+                    '-y',                        # Sobrescribir si existe
+                    output_file
+                ]
+                
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                
+                if result.returncode == 0:
+                    return jsonify({
+                        'success': True, 
+                        'converted_path': relative_output,
+                        'original_size': os.path.getsize(original_file),
+                        'converted_size': os.path.getsize(output_file),
+                        'message': 'Video convertido exitosamente'
+                    })
+                else:
+                    return jsonify({
+                        'success': False, 
+                        'error': f'Error de ffmpeg: {result.stderr}'
+                    }), 500
+                    
+            except subprocess.TimeoutExpired:
+                return jsonify({'success': False, 'error': 'Timeout en conversión'}), 500
+            except FileNotFoundError:
+                return jsonify({'success': False, 'error': 'ffmpeg no encontrado. Instalar FFmpeg.'}), 500
+            except Exception as e:
+                return jsonify({'success': False, 'error': f'Error en conversión: {str(e)}'}), 500
+                
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+
+    @app.route('/api/reconstruction/<patient_id>/<session_id>')
+    def get_reconstruction_videos(patient_id, session_id):
+        """Obtener y convertir automáticamente todos los videos de una sesión"""
+        try:
+            # Directorio base de videos anotados
+            annotated_dir = os.path.join(frontend_dir, 'data', 'annotated_videos', f'patient{patient_id}', f'session{session_id}')
+            
+            if not os.path.exists(annotated_dir):
+                return jsonify({'success': False, 'error': 'Sesión no encontrada'}), 404
+            
+            videos = []
+            conversion_errors = []
+            
+            # Buscar todas las cámaras en el directorio
+            for camera_folder in os.listdir(annotated_dir):
+                camera_path = os.path.join(annotated_dir, camera_folder)
+                
+                if os.path.isdir(camera_path) and camera_folder.startswith('camera'):
+                    camera_id = camera_folder.replace('camera', '')
+                    
+                    # Buscar videos en esta cámara
+                    for video_file in os.listdir(camera_path):
+                        if video_file.endswith('.mp4'):
+                            original_path = os.path.join(camera_path, video_file)
+                            chunk_name = video_file.replace('.mp4', '')
+                            
+                            # Crear directorio de salida
+                            converted_dir = os.path.join(frontend_dir, 'data', 'converted_videos', f'patient{patient_id}', f'session{session_id}', f'camera{camera_id}')
+                            os.makedirs(converted_dir, exist_ok=True)
+                            
+                            # Archivo convertido
+                            converted_file = os.path.join(converted_dir, f'{chunk_name}_converted.mp4')
+                            relative_converted = f'data/converted_videos/patient{patient_id}/session{session_id}/camera{camera_id}/{chunk_name}_converted.mp4'
+                            
+                            # Verificar si ya está convertido
+                            if os.path.exists(converted_file):
+                                videos.append({
+                                    'camera_id': camera_id,
+                                    'chunk_name': chunk_name,
+                                    'converted_path': relative_converted,
+                                    'status': 'ready'
+                                })
+                            else:
+                                # Convertir automáticamente
+                                try:
+                                    import subprocess
+                                    cmd = [
+                                        'ffmpeg', 
+                                        '-i', original_path,
+                                        '-c:v', 'libx264',
+                                        '-profile:v', 'baseline',
+                                        '-level', '3.0',
+                                        '-pix_fmt', 'yuv420p',
+                                        '-c:a', 'aac',
+                                        '-b:a', '128k',
+                                        '-movflags', '+faststart',
+                                        '-y',
+                                        converted_file
+                                    ]
+                                    
+                                    result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                                    
+                                    if result.returncode == 0:
+                                        videos.append({
+                                            'camera_id': camera_id,
+                                            'chunk_name': chunk_name,
+                                            'converted_path': relative_converted,
+                                            'status': 'converted'
+                                        })
+                                    else:
+                                        conversion_errors.append(f'Camera {camera_id}, chunk {chunk_name}: {result.stderr[:100]}')
+                                        
+                                except Exception as e:
+                                    conversion_errors.append(f'Camera {camera_id}, chunk {chunk_name}: {str(e)}')
+            
+            # Organizar por cámara
+            cameras = {}
+            for video in videos:
+                camera_id = video['camera_id']
+                if camera_id not in cameras:
+                    cameras[camera_id] = []
+                cameras[camera_id].append(video)
+            
+            # Ordenar cámaras y chunks
+            for camera_id in cameras:
+                cameras[camera_id].sort(key=lambda x: int(x['chunk_name']) if x['chunk_name'].isdigit() else 0)
+            
+            return jsonify({
+                'success': True,
+                'patient_id': patient_id,
+                'session_id': session_id,
+                'cameras': cameras,
+                'total_videos': len(videos),
+                'conversion_errors': conversion_errors
+            })
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
 
     @app.route('/api/annotated_videos/upload', methods=['POST'])
     def upload_annotated_video():

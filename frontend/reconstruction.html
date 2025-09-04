@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconstrucciones del Esqueleto</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #e8f4fd 0%, #b3d9f2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 2.5rem;
+            font-weight: 300;
+            margin-bottom: 40px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .session-info {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .session-info h2 {
+            color: #34495e;
+            font-size: 1.3rem;
+            font-weight: 400;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #7f8c8d;
+            font-size: 1.2rem;
+        }
+
+        .loading::after {
+            content: '';
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #b3d9f2;
+            border-radius: 50%;
+            border-top-color: #3498db;
+            animation: spin 1s ease-in-out infinite;
+            margin-left: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .camera-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 30px;
+            margin-top: 20px;
+        }
+
+        .camera-section {
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .camera-section:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 45px rgba(0, 0, 0, 0.15);
+        }
+
+        .camera-title {
+            color: #2c3e50;
+            font-size: 1.4rem;
+            font-weight: 500;
+            margin-bottom: 20px;
+            text-align: center;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #3498db;
+        }
+
+        .video-container {
+            margin-bottom: 20px;
+        }
+
+        .chunk-label {
+            color: #7f8c8d;
+            font-size: 0.9rem;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            background: #000;
+        }
+
+        .error-message {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid #f5c6cb;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .no-videos {
+            text-align: center;
+            padding: 60px 20px;
+            color: #7f8c8d;
+            font-size: 1.1rem;
+        }
+
+        .back-button {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(52, 152, 219, 0.9);
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(52, 152, 219, 0.3);
+        }
+
+        .back-button:hover {
+            background: rgba(41, 128, 185, 0.95);
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(52, 152, 219, 0.4);
+        }
+
+        .status-indicator {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-left: 10px;
+        }
+
+        .status-ready {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-converted {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+
+        @media (max-width: 768px) {
+            .camera-grid {
+                grid-template-columns: 1fr;
+                gap: 20px;
+            }
+            
+            h1 {
+                font-size: 2rem;
+                margin-bottom: 20px;
+            }
+            
+            .back-button {
+                position: relative;
+                top: auto;
+                left: auto;
+                margin-bottom: 20px;
+                display: block;
+                width: fit-content;
+                margin-left: auto;
+                margin-right: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <button class="back-button" onclick="goBack()">← Volver</button>
+    
+    <div class="container">
+        <h1>Reconstrucciones del Esqueleto</h1>
+        
+        <div class="session-info">
+            <h2 id="sessionTitle">Cargando información de la sesión...</h2>
+        </div>
+        
+        <div id="loadingMessage" class="loading">
+            Procesando y convirtiendo videos para visualización web...
+        </div>
+        
+        <div id="videoContainer" class="camera-grid" style="display: none;">
+            <!-- Los videos se cargarán aquí dinámicamente -->
+        </div>
+        
+        <div id="errorContainer" style="display: none;">
+            <!-- Los errores se mostrarán aquí -->
+        </div>
+    </div>
+
+    <script>
+        // Obtener parámetros de la URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const patientId = urlParams.get('patient_id') || '34';
+        const sessionId = urlParams.get('session_id') || '20';
+        
+        // Actualizar título de la sesión
+        document.getElementById('sessionTitle').textContent = 
+            `Paciente ${patientId} - Sesión ${sessionId}`;
+
+        // Función para volver atrás
+        function goBack() {
+            // Volver directamente a la página principal
+            window.location.href = '/';
+        }
+
+        // Cargar videos automáticamente
+        async function loadReconstructions() {
+            try {
+                const response = await fetch(`/api/reconstruction/${patientId}/${sessionId}`);
+                const data = await response.json();
+                
+                document.getElementById('loadingMessage').style.display = 'none';
+                
+                if (!data.success) {
+                    showError(data.error || 'Error cargando reconstrucciones');
+                    return;
+                }
+                
+                if (Object.keys(data.cameras).length === 0) {
+                    showNoVideos();
+                    return;
+                }
+                
+                displayVideos(data);
+                
+                // Mostrar errores de conversión si los hay
+                if (data.conversion_errors && data.conversion_errors.length > 0) {
+                    showConversionErrors(data.conversion_errors);
+                }
+                
+            } catch (error) {
+                document.getElementById('loadingMessage').style.display = 'none';
+                showError(`Error de conexión: ${error.message}`);
+            }
+        }
+
+        function displayVideos(data) {
+            const container = document.getElementById('videoContainer');
+            container.innerHTML = '';
+            
+            // Ordenar cámaras numéricamente
+            const sortedCameras = Object.keys(data.cameras).sort((a, b) => parseInt(a) - parseInt(b));
+            
+            sortedCameras.forEach(cameraId => {
+                const videos = data.cameras[cameraId];
+                
+                const cameraSection = document.createElement('div');
+                cameraSection.className = 'camera-section';
+                
+                const cameraTitle = document.createElement('div');
+                cameraTitle.className = 'camera-title';
+                cameraTitle.textContent = `Cámara ${cameraId}`;
+                cameraSection.appendChild(cameraTitle);
+                
+                videos.forEach(video => {
+                    const videoContainer = document.createElement('div');
+                    videoContainer.className = 'video-container';
+                    
+                    const chunkLabel = document.createElement('div');
+                    chunkLabel.className = 'chunk-label';
+                    chunkLabel.innerHTML = `
+                        Chunk ${video.chunk_name}
+                        <span class="status-indicator status-${video.status}">
+                            ${video.status === 'ready' ? 'Listo' : 'Convertido'}
+                        </span>
+                    `;
+                    videoContainer.appendChild(chunkLabel);
+                    
+                    const videoElement = document.createElement('video');
+                    videoElement.controls = true;
+                    videoElement.preload = 'metadata';
+                    videoElement.autoplay = true;
+                    videoElement.muted = true;
+                    videoElement.loop = true;
+                    
+                    const source = document.createElement('source');
+                    source.src = video.converted_path;
+                    source.type = 'video/mp4';
+                    videoElement.appendChild(source);
+                    
+                    videoContainer.appendChild(videoElement);
+                    cameraSection.appendChild(videoContainer);
+                });
+                
+                container.appendChild(cameraSection);
+            });
+            
+            container.style.display = 'grid';
+        }
+
+        function showError(message) {
+            const errorContainer = document.getElementById('errorContainer');
+            errorContainer.innerHTML = `
+                <div class="error-message">
+                    <strong>Error:</strong> ${message}
+                </div>
+            `;
+            errorContainer.style.display = 'block';
+        }
+
+        function showNoVideos() {
+            const container = document.getElementById('videoContainer');
+            container.innerHTML = `
+                <div class="no-videos">
+                    <h3>No se encontraron videos</h3>
+                    <p>No hay reconstrucciones disponibles para el Paciente ${patientId}, Sesión ${sessionId}</p>
+                </div>
+            `;
+            container.style.display = 'block';
+        }
+
+        function showConversionErrors(errors) {
+            const errorContainer = document.getElementById('errorContainer');
+            const errorHtml = errors.map(error => `<li>${error}</li>`).join('');
+            errorContainer.innerHTML += `
+                <div class="error-message">
+                    <strong>Advertencias de conversión:</strong>
+                    <ul style="margin-top: 10px; text-align: left;">
+                        ${errorHtml}
+                    </ul>
+                </div>
+            `;
+            errorContainer.style.display = 'block';
+        }
+
+        // Cargar reconstrucciones al cargar la página
+        window.addEventListener('load', loadReconstructions);
+    </script>
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Video Web-Compatible</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-color: #f0f8ff; 
+        }
+        .section { 
+            background: white; 
+            padding: 20px; 
+            margin: 15px 0; 
+            border-radius: 8px; 
+            border-left: 4px solid #4CAF50; 
+        }
+        .error { border-left-color: #f44336; }
+        .success { border-left-color: #2196F3; }
+        button {
+            background: #4CAF50;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+            font-size: 16px;
+        }
+        button:hover { background: #45a049; }
+        button:disabled { background: #cccccc; cursor: not-allowed; }
+        .progress { 
+            background: #e8f4fd; 
+            padding: 15px; 
+            border-radius: 5px; 
+            margin: 10px 0; 
+            font-family: monospace; 
+        }
+        video { 
+            width: 100%; 
+            max-width: 600px; 
+            background: #000; 
+            margin: 15px 0; 
+        }
+    </style>
+</head>
+<body>
+    <h1>🎬 Conversor de Video Web-Compatible</h1>
+    
+    <div class="section">
+        <h2>Problema Identificado</h2>
+        <p>El video se sirve correctamente pero no se reproduce en el navegador. Esto suele ocurrir cuando:</p>
+        <ul>
+            <li>📋 Los metadatos (moov atom) están al final del archivo</li>
+            <li>🎯 El códec no es compatible con web</li>
+            <li>⚡ Falta optimización para streaming</li>
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Solución Automática</h2>
+        <button onclick="convertVideo()" id="convertBtn">🔧 Convertir a Web-Compatible</button>
+        <div id="progress" class="progress" style="display: none;">Procesando...</div>
+    </div>
+
+    <div class="section" id="originalSection">
+        <h2>Video Original (Problemático)</h2>
+        <video controls preload="metadata">
+            <source src="data/annotated_videos/patient34/session20/camera0/0.mp4" type="video/mp4">
+            No se puede reproducir
+        </video>
+        <p>❌ Este video no se reproduce correctamente</p>
+    </div>
+
+    <div class="section" id="convertedSection" style="display: none;">
+        <h2>Video Convertido (Web-Compatible)</h2>
+        <video controls preload="metadata">
+            <source id="convertedVideoSrc" src="" type="video/mp4">
+            Video convertido
+        </video>
+        <p>✅ Este video debería reproducirse correctamente</p>
+    </div>
+
+    <script>
+        async function convertVideo() {
+            const btn = document.getElementById('convertBtn');
+            const progress = document.getElementById('progress');
+            const convertedSection = document.getElementById('convertedSection');
+            const convertedVideoSrc = document.getElementById('convertedVideoSrc');
+            
+            btn.disabled = true;
+            progress.style.display = 'block';
+            progress.textContent = '🔄 Iniciando conversión...';
+            
+            try {
+                // Llamar al endpoint de conversión
+                const response = await fetch('/api/convert-video', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        input_path: 'data/annotated_videos/patient34/session20/camera0/0.mp4',
+                        patient_id: 'patient34',
+                        session_id: 'session20',
+                        camera_id: 'camera0'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Error ${response.status}: ${response.statusText}`);
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    progress.textContent = '✅ ¡Conversión completada exitosamente!';
+                    convertedVideoSrc.src = result.converted_path;
+                    convertedSection.style.display = 'block';
+                    
+                    // Intentar cargar el video convertido
+                    setTimeout(() => {
+                        const convertedVideo = convertedSection.querySelector('video');
+                        convertedVideo.load();
+                    }, 500);
+                } else {
+                    throw new Error(result.error || 'Error desconocido en la conversión');
+                }
+                
+            } catch (error) {
+                progress.textContent = `❌ Error: ${error.message}`;
+                progress.style.color = '#f44336';
+            } finally {
+                btn.disabled = false;
+            }
+        }
+    </script>
+</body>
+</html>

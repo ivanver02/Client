@@ -470,9 +470,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (viewReconstructionBtn) {
         viewReconstructionBtn.addEventListener('click', () => {
-            const patientId = patientIdInput.value.trim() || state.patientId || '1';
-            const sessionId = sessionIdInput.value.trim() || state.sessionId || '1';
-            // La URL ahora apunta a un archivo dentro de la carpeta 'frontend'
+            const patientId = patientIdInput.value.trim() || state.patientId || '34';
+            const sessionId = sessionIdInput.value.trim() || state.sessionId || '20';
+            // Mantener parámetros para uso futuro, pero por ahora usar valores fijos
             const url = `reconstruction.html?patient_id=${patientId}&session_id=${sessionId}`;
             window.open(url, '_blank');
         });
