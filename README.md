@@ -2,7 +2,7 @@
 
 Este proyecto es el backend y frontend para la gestión, grabación y procesamiento de video multi-cámara, desarrollado por la Universidad de Málaga y el Hospital Costa del Sol. El sistema permite la captura sincronizada de video, gestión de sesiones y control de cámaras Orbbec, así como la interacción con el usuario a través de una interfaz web.
 
-Este proyecto (Code) está diseñado para funcionar conjuntamente con el repositorio Server, que se encarga del procesamiento avanzado de los videos, detección de keypoints y reconstrucción 3D. Code gestiona la captura, grabación y envío de video multi-cámara. Ambos forman el flujo completo de análisis de marcha, permitiendo una integración clínica e investigadora robusta. Para el funcionamiento completo, consulta y utiliza ambos repositorios.
+Este proyecto (Client) está diseñado para funcionar conjuntamente con el repositorio Server, que se encarga del procesamiento avanzado de los videos, detección de keypoints y reconstrucción 3D. Client gestiona la captura, grabación y envío de video multi-cámara. Ambos forman el flujo completo de análisis de marcha, permitiendo una integración clínica e investigadora robusta. Para el funcionamiento completo, consulta y utiliza ambos repositorios.
 
 ---
 ## Descripción del proyecto
@@ -13,7 +13,7 @@ El sistema gestiona la detección y control de cámaras Orbbec Gemini 335Le, la 
 ## Estructura de archivos del proyecto
 
 ```
-Code/
+Client/
 ├── main.py
 ├── instalar.bat
 ├── requirements.txt
@@ -41,7 +41,11 @@ Code/
 │   ├── index.html
 │   ├── script.js
 │   └── style.css
-└── .gitignore
+├── .github/
+│   └── copilot-instructions.md
+├── .gitignore
+├── .gitmodules
+└── LICENSE.md
 ```
 
 ---
@@ -76,6 +80,7 @@ python main.py
 ---
 ## Consideraciones importantes
 
+- **Configuración del servidor**: Es necesario configurar la dirección IP y puerto del servidor Server en [`backend/config/settings.py`](backend/config/settings.py). Por defecto está configurado para `192.168.159.101:11299`, pero debe ajustarse según tu entorno.
 - El SDK de Orbbec debe estar correctamente instalado y configurado. Consulta [`docs/INSTALACION_SDK.md`](docs/INSTALACION_SDK.md) para instrucciones detalladas.
 - El script [`instalar.bat`](instalar.bat) automatiza la instalación y verificación del SDK y dependencias.
 - El sistema está diseñado para funcionar con cámaras Orbbec Gemini 335Le, pero puede adaptarse a otros modelos implementando un gestor específico en lugar de [`backend/camera_manager/camera_manager.py`](backend/camera_manager/camera_manager.py).
