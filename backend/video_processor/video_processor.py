@@ -231,7 +231,7 @@ class VideoProcessor:
             try:
                 if writer.writer:
                     writer.writer.release()
-                    time.sleep(0.1) # Pequeña espera para asegurar cierre
+                    time.sleep(0.3) # Pequeña espera para asegurar cierre
                 if os.path.exists(writer.output_path):
                     os.remove(writer.output_path)
                     print(f"Archivo eliminado: {writer.output_path}")
