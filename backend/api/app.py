@@ -156,6 +156,7 @@ def create_app() -> Flask:
                 )
                 
                 if camera_manager.initialize_camera(camera_id, config):
+                    time.sleep(0.5)  # Espera para evitar conflictos de recursos USB
                     initialized.append(camera_id)
                 else:
                     errors.append(f"Error inicializando cámara {camera_id}")
