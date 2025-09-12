@@ -121,7 +121,7 @@ class OrbbecCamera:
         try:
             #print(f"Cámara {self.camera_id}: Intentando obtener frames...")
             # Obtener frames con timeout más largo
-            frames = self.pipeline.wait_for_frames(10000)  # Aumentar timeout
+            frames = self.pipeline.wait_for_frames(1000)  
             if not frames:
                 print(f"Cámara {self.camera_id}: wait_for_frames devolvió None")
                 return None
