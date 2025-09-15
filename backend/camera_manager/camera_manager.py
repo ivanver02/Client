@@ -30,7 +30,10 @@ class CameraInfo:
 
 
 class OrbbecCamera:
-    """Controlador para una cámara Orbbec"""
+    """
+    Controlador para una cámara Orbbec
+    Si se emplease otra cámara, se debe crear una clase similar adaptada a su SDK, que implemente los mismos métodos.
+    """
     
     def __init__(self, device, camera_id: int, config: CameraConfig):
         self.device = device
