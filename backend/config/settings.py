@@ -27,6 +27,8 @@ class ServerConfig:
     session_start_endpoint: str = "/api/session/start"
     session_end_endpoint: str = "/api/session/end"  # Endpoint para finalizar sesión normalmente
     session_cancel_endpoint: str = "/api/session/cancel"  # Endpoint para cancelar sesión (elimina datos)
+    session_check_endpoint: str = "/api/session/check"  # Endpoint para verificar estado de sesión
+    session_delete_endpoint: str = "/api/session/delete"  # Endpoint para eliminar sesión existente
 
 
 class SystemConfig:
