@@ -227,23 +227,23 @@ class CameraManager:
             if camera_id in self.cameras:
                 print(f"Cámara {camera_id} ya está inicializada")
                 return True
-            
+
             device_list = self.context.query_devices()
-            
+
             if camera_id >= device_list.get_count():
                 print(f"Cámara {camera_id}: ID fuera de rango")
                 return False
-            
+
             device = device_list[camera_id]
             camera = OrbbecCamera(device, camera_id, config)
-            
+
             if camera.initialize():
                 self.cameras[camera_id] = camera
                 self.camera_configs[camera_id] = config
                 return True
             else:
                 return False
-                
+
         except Exception as e:
             print(f"Error inicializando cámara {camera_id}: {e}")
             return False

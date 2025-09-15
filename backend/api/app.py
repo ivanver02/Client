@@ -60,10 +60,12 @@ def create_app() -> Flask:
             if response.status_code == 200:
                 print(f"Chunk enviado exitosamente: {chunk.chunk_id}")
                 # Eliminar archivo local después del envío exitoso
+                """
                 try:
                     os.remove(chunk.file_path)
                 except Exception as e:
                     print(f"Error eliminando archivo local: {e}")
+                """
             elif response.status_code == 500:
                 # Verificar si es un error de fallo de cámaras
                 try:

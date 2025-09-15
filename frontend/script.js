@@ -494,11 +494,13 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeSystem();
     
     // Actualizar estado cada 30 segundos
+    /*
     setInterval(() => {
         if (!state.isRecording) {
             initializeSystem();
         }
     }, 30000);
+    */
     // Limpiar intervals al cerrar la página
     window.addEventListener('beforeunload', () => {
         stopStatusPolling();
