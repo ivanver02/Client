@@ -232,9 +232,11 @@ class VideoProcessor:
                 if writer.writer:
                     writer.writer.release()
                     time.sleep(0.5) # Pequeña espera para asegurar cierre
+                """"
                 if os.path.exists(writer.output_path):
                     os.remove(writer.output_path)
                     print(f"Archivo eliminado: {writer.output_path}")
+                """
             except Exception as e:
                 print(f"Error eliminando archivo de cámara {camera_id}: {e}")
         
@@ -242,7 +244,7 @@ class VideoProcessor:
         camera_manager.stop_recording_all()
         
         # Limpiar directorio temporal de la sesión
-        self._cleanup_session_files()
+        #self._cleanup_session_files()
         
         print("Grabación cancelada y archivos limpiados")
         return True
