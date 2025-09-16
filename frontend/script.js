@@ -38,7 +38,9 @@ document.addEventListener('DOMContentLoaded', () => {
         startRecording: '/api/recording/start',
         stopRecording: '/api/recording/stop',
         cancelRecording: '/api/recording/cancel',
-        recordingStatus: '/api/recording/status'
+        recordingStatus: '/api/recording/status',
+        sessionCheck: '/api/session/check',
+        sessionDelete: '/api/session/delete'
     };
 
     // --- Log de ayuda ---
@@ -322,7 +324,52 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             
             console.log(`${initData.initialized_cameras.length} cámaras inicializadas para grabación`);
-            
+
+            // 1 Comprobar si la sesión ya existe
+            console.log('Comprobando si la sesión ya existe...');
+            const checkResponse = await fetch(API.sessionCheck, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    patient_id: patientId,
+                    session_id: sessionId
+                })
+            });
+
+            if (!checkResponse.ok) {
+                throw new Error('Error comprobando sesión');
+            }
+
+            const checkData = await checkResponse.json();
+            if (checkData.success && checkData.session_exists) {
+                console.log('La sesión ya existe.');
+
+                const userChoice = window.confirm('La sesión ya existe. ¿Deseas sobrescribir la sesión?');
+                if (userChoice) {
+                    // El usuario eligió sobrescribir la sesión
+                    console.log('Sobrescribiendo la sesión...');
+                    
+                    const checkResponse = await fetch(API.sessionDelete, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            patient_id: patientId,
+                            session_id: sessionId
+                        })
+                     });
+
+                    if (!checkResponse.ok) {
+                        throw new Error('No se pudo eliminar la sesión existente');
+                    }
+                }else {
+                    // El usuario eligió no sobrescribir la sesión
+                    console.log('El usuario eligió no sobrescribir la sesión.');
+                    return; // Salir de la función sin iniciar la grabación
+                }
+            } else {
+                console.log('No se encontró sesión existente.');
+            }
+
             // 2. Iniciar grabación
             console.log('Enviando request a:', API.startRecording);
             const response = await fetch(API.startRecording, {

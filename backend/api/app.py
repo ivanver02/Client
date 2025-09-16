@@ -469,7 +469,89 @@ def create_app() -> Flask:
                 'success': False,
                 'error': str(e)
             }), 500
+
+    @app.route('/api/session/check', methods=['POST'])
+    def session_check():
+        """Comprobar si la sesión existe"""
+        data = request.get_json() or {}
+        patient_id = data.get('patient_id')
+        session_id = data.get('session_id')
+
+        if not patient_id or not session_id:
+            return jsonify({
+                'success': False,
+                'error': 'Faltan datos de sesión'
+            }), 400
+
+        try:
+            url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_check_endpoint}"
+            check_response = requests.post(url, json={
+                'patient_id': patient_id,
+                'session_id': session_id
+            }, timeout=10)
+
+            if check_response.status_code == 200:
+                response_data = check_response.json()
+                session_exists = response_data.get('session_exists', False)
+            elif check_response.status_code == 400:
+                session_exists = False
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Error del servidor: {check_response.status_code}'
+                }), 500
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'session_exists': session_exists
+        })
     
+    @app.route('/api/session/delete', methods=['POST'])
+    def session_delete():
+        """Eliminar sesión"""
+        data = request.get_json() or {}
+        patient_id = data.get('patient_id')
+        session_id = data.get('session_id')
+
+        if not patient_id or not session_id:
+            return jsonify({
+                'success': False,
+                'error': 'Faltan datos de sesión'
+            }), 400
+
+        try:
+            url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.session_delete_endpoint}"
+            delete_response = requests.post(url, json={
+                'patient_id': patient_id,
+                'session_id': session_id
+            }, timeout=10)
+
+            if delete_response.status_code == 200:
+                response_data = delete_response.json()
+                session_deleted = response_data.get('session_deleted', False)
+            elif delete_response.status_code == 400:
+                session_deleted = False
+            else:
+                return jsonify({
+                    'success': False,
+                    'error': f'Error del servidor: {delete_response.status_code}'
+                }), 500
+        except Exception as e:
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'session_deleted': session_deleted
+        })
+
     return app
 
 
