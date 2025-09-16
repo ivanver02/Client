@@ -10,6 +10,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const recordingControls = document.getElementById('recording-controls');
         const patientIdInput = document.getElementById('patient-id');
         const sessionIdInput = document.getElementById('session-id');
+        const userHeightInput = document.getElementById('user-height');
         
         // Verificar que todos los elementos existan
         console.log(' Verificando elementos del DOM:');
@@ -20,6 +21,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('- recordingControls:', recordingControls);
         console.log('- patientIdInput:', patientIdInput);
         console.log('- sessionIdInput:', sessionIdInput);
+        console.log('- userHeightInput:', userHeightInput);
 
     // --- Estado inicial de la aplicación ---
     let state = {
@@ -58,6 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // Deshabilitar inputs durante grabación
         patientIdInput.disabled = isRecording;
         sessionIdInput.disabled = isRecording;
+        userHeightInput.disabled = isRecording; // Deshabilitar input de altura del usuario durante grabación
         
         // Iniciar/detener polling de estado
         if (isRecording) {
@@ -175,6 +178,7 @@ document.addEventListener('DOMContentLoaded', () => {
         state.patientId = null;
         sessionIdInput.value = "";
         patientIdInput.value = "";
+        userHeightInput.value = ""; // Resetear campo de altura del usuario
         
         // Resetear botones
         if (processBtn) {
@@ -283,8 +287,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Validar datos
             const patientId = patientIdInput.value.trim() || '1';
             const sessionId = sessionIdInput.value.trim() || '1';
-            console.log('Patient ID:', patientId);
-            console.log('Session ID:', sessionId);
+            
+            // Example: Log the user height value in centimeters
+            const userHeight = parseInt(userHeightInput.value.trim(), 10);
+            console.log('Altura del usuario (cm):', userHeight);
             
             showMessage(`Iniciando grabación para paciente: ${patientId}`);
             
@@ -377,7 +383,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 
                     patient_id: patientId,
-                    session_id: sessionId
+                    session_id: sessionId,
+                    user_height: userHeight // Enviar altura del usuario en centímetros
                 })
             });
             

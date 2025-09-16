@@ -213,6 +213,7 @@ def create_app() -> Flask:
             data = request.get_json() or {}
             patient_id = data.get('patient_id', '1')
             session_id = data.get('session_id', '1')
+            height = data.get('user_height', 170.0)  # Altura en cm
             
             # Reiniciar flag de fallo de cámaras al iniciar nueva sesión
             global camera_failure_detected
@@ -234,6 +235,7 @@ def create_app() -> Flask:
                 start_response = requests.post(url, json={
                     'patient_id': patient_id,
                     'session_id': session_id,  # Usar el session_id del frontend
+                    'user_height': height,
                     'cameras_count': len(camera_manager.cameras)
                 }, timeout=10)
                 
