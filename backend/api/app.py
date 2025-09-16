@@ -446,6 +446,7 @@ def create_app() -> Flask:
                 
                 if camera_manager.initialize_camera(camera_id, config):
                     initialized.append(camera_id)
+                    time.sleep(0.5)
                 else:
                     errors.append(f"Error inicializando cámara {camera_id}")
             
