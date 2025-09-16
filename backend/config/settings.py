@@ -37,6 +37,11 @@ class SystemConfig:
     # Cámaras
     MAX_CAMERAS = 5
     DEFAULT_CAMERA_CONFIG = CameraConfig(camera_id=0)
+    SERIAL_TO_ID_MAP = {
+            "CPE345P0007S": 0,  
+            "CPE745P0002V": 1,  
+            "CPE745P0002B": 2   
+        }
     
     # Grabación
     RECORDING = RecordingConfig()

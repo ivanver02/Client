@@ -189,38 +189,59 @@ class CameraManager:
     def discover_cameras(self) -> List[CameraInfo]:
         """Descubrir cámaras Orbbec conectadas"""
         cameras_found = []
-        
+
+        # Mapeo fijo de serial_number a camera_id
+        serial_to_id_map = SystemConfig.SERIAL_TO_ID_MAP
+
         try:
             device_list = self.context.query_devices()
             device_count = device_list.get_count()
-            
+
             if device_count == 0:
                 print("No se encontraron cámaras Orbbec conectadas")
                 return cameras_found
-            
+
             print(f"Encontradas {device_count} cámaras Orbbec")
-            
+
+            # Verificar si el número de cámaras coincide con el tamaño del diccionario
+            use_serial_mapping = device_count == len(serial_to_id_map)
+
+            # Inicializar el array con None para mantener posiciones
+            cameras_found = [None] * device_count
+
             for i in range(device_count):
                 try:
                     device = device_list[i]
                     device_info = device.get_device_info()
-                    
+                    serial_number = device_info.get_serial_number()
+
+                    # Asignar camera_id basado en el serial_number solo si coincide el tamaño
+                    if use_serial_mapping:
+                        camera_id = serial_to_id_map.get(serial_number, i)  # Usar índice como fallback
+                    else:
+                        camera_id = i  # Asignar ID basado en el índice
+
                     camera_info = CameraInfo(
-                        camera_id=i,
-                        serial_number=device_info.get_serial_number(),
+                        camera_id=camera_id,
+                        serial_number=serial_number,
                         is_connected=True
                     )
-                    cameras_found.append(camera_info)
-                    
-                    print(f"Cámara {i}: S/N {device_info.get_serial_number()}")
-                    
+
+                    # Insertar en la posición correspondiente
+                    cameras_found[camera_id] = camera_info
+
+                    print(f"Cámara {camera_id}: S/N {serial_number}")
+
                 except Exception as e:
                     print(f"Error procesando cámara {i}: {e}")
-                    
+
+            # Filtrar posiciones vacías en caso de errores
+            cameras_found = [camera for camera in cameras_found if camera is not None]
+
         except Exception as e:
             print(f"Error descubriendo cámaras: {e}")
             raise RuntimeError(f"Error crítico en descubrimiento de cámaras: {e}")
-        
+
         return cameras_found
     
     def initialize_camera(self, camera_id: int, config: CameraConfig) -> bool:
