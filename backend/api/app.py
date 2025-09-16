@@ -386,6 +386,7 @@ def create_app() -> Flask:
             print(f"Error en upload_chunk_to_server: {e}")
         finally:
             # Cerrar archivo
+            print("Se ha mandado el chunk correctamente.")
             try:
                 files['file'].close()
             except:

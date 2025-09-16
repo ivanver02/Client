@@ -119,26 +119,25 @@ class OrbbecCamera:
             return None
             
         try:
-            print(f"Cámara {self.camera_id}: Intentando obtener frames...")
+            #print(f"Cámara {self.camera_id}: Intentando obtener frames...")
             # Obtener frames con timeout más largo
             frames = self.pipeline.wait_for_frames(1000)  # Aumentar timeout
             if not frames:
                 print(f"Cámara {self.camera_id}: wait_for_frames devolvió None")
                 return None
                 
-            print(f"Cámara {self.camera_id}: Frames obtenidos, buscando color frame...")
+            #print(f"Cámara {self.camera_id}: Frames obtenidos, buscando color frame...")
             color_frame = frames.get_color_frame()
             if not color_frame:
                 print(f"Cámara {self.camera_id}: No se pudo obtener color frame")
                 return None
             
-            print(f"Cámara {self.camera_id}: Color frame obtenido, convirtiendo...")
+            #print(f"Cámara {self.camera_id}: Color frame obtenido, convirtiendo...")
             # Convertir a formato OpenCV (BGR)
             result = self._frame_to_bgr_image(color_frame)
-            if result is not None:
-                print(f"Cámara {self.camera_id}: Frame convertido exitosamente")
-            else:
+            if result is None:
                 print(f"Cámara {self.camera_id}: Error en conversión de frame")
+                
             return result
             
         except Exception as e:
