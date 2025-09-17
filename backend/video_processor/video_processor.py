@@ -266,6 +266,7 @@ class VideoProcessor:
                 
                 # Finalizar chunk actual y crear el siguiente
                 if self.recording_active:
+                    print(f"Estado de recording_active: {self.recording_active}")
                     print("Finalizando chunks actuales...")
                     self._finalize_current_chunks()
                     print(f"Estado después de finalizar - chunk_sequence: {self.chunk_sequence}")
@@ -289,6 +290,7 @@ class VideoProcessor:
                 output_path = self._generate_chunk_path(camera_id)
                 print(f"Generando archivo para cámara {camera_id}: {output_path}")
                 
+                print(f"Cámara detectada: {camera_id}")
                 writer = VideoWriter(camera_id, output_path)
                 
                 # Obtener un frame para determinar dimensiones
@@ -313,6 +315,7 @@ class VideoProcessor:
         """Finalizar chunks actuales y enviarlos"""
         chunks_to_upload = []
         
+        print("Ejecutando _finalize_current_chunks")
         for camera_id, writer in list(self.current_writers.items()):
             chunk = self._finalize_writer(camera_id, writer)
             if chunk:
@@ -322,6 +325,7 @@ class VideoProcessor:
         
         # Enviar chunks en paralelo
         for chunk in chunks_to_upload:
+            print(f"Preparando subida para chunk: Cámara {chunk.camera_id}, Secuencia {chunk.sequence_number}")
             threading.Thread(target=self._upload_chunk, args=(chunk,), daemon=True).start()
     
     def _finalize_writer(self, camera_id: int, writer: VideoWriter) -> Optional[VideoChunk]:
@@ -341,6 +345,7 @@ class VideoProcessor:
         try:
             # Llamar callbacks registrados
             for callback in self.upload_callbacks:
+                print(f"Invocando callback para chunk: Cámara {chunk.camera_id}, Secuencia {chunk.sequence_number}")
                 callback(chunk)
                 
             print(f"Chunk enviado: Cámara {chunk.camera_id}, Secuencia {chunk.sequence_number}")

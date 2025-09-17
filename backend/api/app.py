@@ -344,6 +344,8 @@ def create_app() -> Flask:
                 'file_size_bytes': chunk.file_size_bytes
             }
             
+            print(f"Uploading chunk: Camera ID {chunk.camera_id}, Chunk ID {chunk.chunk_id}, Session ID {chunk.session_id}")
+            
             response = requests.post(url, files=files, data=data, timeout=30)
             
             if response.status_code == 200:
