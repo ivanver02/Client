@@ -40,7 +40,9 @@ class SystemConfig:
     SERIAL_TO_ID_MAP = {
             "CPE345P0007S": 0,  
             "CPE745P0002V": 1,  
-            "CPE745P0002B": 2   
+            "CPE745P0002B": 2,
+            "CPE745P00018": 3,
+            "CPE345P0007P": 4 
         }
     
     # Grabación
