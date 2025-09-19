@@ -114,15 +114,13 @@ class VideoWriter:
 class VideoDepthWriter:
     """Manejador de escritura de video de color y datos de profundidad para una cámara"""
     
-    def __init__(self, camera_id: int, output_path: str, chunk_id: str):
+    def __init__(self, camera_id: int, color_path: str, depth_path: str):
         self.camera_id = camera_id
-        self.output_path = output_path
-        self.chunk_id = chunk_id
         
         # Paths para archivos de color y profundidad
-        self.color_path = os.path.join(output_path, f"{chunk_id}_color.mp4")
-        self.depth_path = os.path.join(output_path, f"{chunk_id}_depth.npy")
-        
+        self.color_path = color_path
+        self.depth_path = depth_path
+
         self.color_writer: Optional[cv2.VideoWriter] = None
         self.depth_frames: List[np.ndarray] = []
         self.frame_count = 0
@@ -131,9 +129,6 @@ class VideoDepthWriter:
     def initialize(self, frame_width: int, frame_height: int, fps: int) -> bool:
         """Inicializar el writer de video de color"""
         try:
-            # Crear directorio si no existe
-            os.makedirs(self.output_path, exist_ok=True)
-            
             # Inicializar writer de color
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             self.color_writer = cv2.VideoWriter(
@@ -484,27 +479,40 @@ class VideoProcessor:
         
         for camera_id in camera_manager.cameras:
             if camera_id not in self.current_writers:
-                output_path = self._generate_chunk_path(camera_id)
-                print(f"Generando archivo para cámara {camera_id}: {output_path}")
-                
-                writer = VideoWriter(camera_id, output_path)
-                
-                # Obtener un frame para determinar dimensiones
-                frame = camera_manager.get_frame(camera_id)
-                if frame is not None:
-                    height, width = frame.shape[:2]
-                    # Obtener FPS real de la cámara
-                    fps = camera_manager.cameras[camera_id].get_real_fps()
-                    print(f"Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps (FPS real)")
-                    
-                    if writer.initialize(width, height, fps):
-                        self.current_writers[camera_id] = writer
-                        print(f"Writer creado exitosamente para cámara {camera_id}")
-                    else:
-                        print(f"Error inicializando writer para cámara {camera_id}")
+                if camera_id == 3 or camera_id == 4:  # Cámaras de profundidad
+                    output_path_color, output_path_depth = self._generate_chunk_path_depth(camera_id)
+                    writer = VideoDepthWriter(camera_id, output_path_color, output_path_depth)
+
+                    # Obtener un frame para determinar dimensiones
+                    frame = camera_manager.get_frame(camera_id)
+                    if frame is not None:
+                        height, width = frame.shape[:2]
+                        # Obtener FPS real de la cámara
+                        fps = camera_manager.cameras[camera_id].get_real_fps()
+
+                        writer = VideoDepthWriter(camera_id, output_path_color, output_path_depth)
                 else:
-                    print(f"No se pudo obtener frame de prueba para cámara {camera_id}")
-        
+                    output_path = self._generate_chunk_path(camera_id)
+                    print(f"Generando archivo para cámara {camera_id}: {output_path}")
+                    
+                    writer = VideoWriter(camera_id, output_path)
+                    
+                    # Obtener un frame para determinar dimensiones
+                    frame = camera_manager.get_frame(camera_id)
+                    if frame is not None:
+                        height, width = frame.shape[:2]
+                        # Obtener FPS real de la cámara
+                        fps = camera_manager.cameras[camera_id].get_real_fps()
+                        print(f"Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps (FPS real)")
+                        
+                        if writer.initialize(width, height, fps):
+                            self.current_writers[camera_id] = writer
+                            print(f"Writer creado exitosamente para cámara {camera_id}")
+                        else:
+                            print(f"Error inicializando writer para cámara {camera_id}")
+                    else:
+                        print(f"No se pudo obtener frame de prueba para cámara {camera_id}")
+                    
         print(f"Writers activos: {list(self.current_writers.keys())}")
     
     def _finalize_current_chunks(self):
@@ -565,6 +573,27 @@ class VideoProcessor:
         
         return os.path.join(camera_dir, filename)
     
+    def _generate_chunk_path_depth(self, camera_id: int) -> str:
+        """Generar ruta para un nuevo chunk"""
+        camera_dir = os.path.join(SystemConfig.TEMP_VIDEO_DIR, f"camera{camera_id}")
+        
+        # Crear directorio de cámara si no existe
+        os.makedirs(camera_dir, exist_ok=True)
+
+        # Obtener el número de secuencia para esta cámara
+        # Asegurar que la cámara tenga una entrada en chunk_sequence
+        if camera_id not in self.chunk_sequence:
+            self.chunk_sequence[camera_id] = 0
+
+        sequence_number = self.chunk_sequence[camera_id]
+        filename_color = f"{sequence_number}_color.mp4"
+        filename_depth = f"{sequence_number}_depth.npy"
+
+        print(f"Generando chunk para cámara {camera_id}: secuencia {sequence_number} → {filename_color}")
+        print(f"Generando chunk de profundidad para cámara {camera_id}: secuencia {sequence_number} → {filename_depth}")
+
+        return os.path.join(camera_dir, filename_color), os.path.join(camera_dir, filename_depth)
+
     def _cleanup_session_files(self):
         """Limpiar archivos de las cámaras"""
         try:
