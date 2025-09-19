@@ -289,7 +289,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const sessionId = sessionIdInput.value.trim() || '1';
             
             // Example: Log the user height value in centimeters
-            const userHeight = parseInt(userHeightInput.value.trim(), 10);
+            const userHeight = parseInt(userHeightInput.value.trim(), 10) || 170; // Valor por defecto 170 cm
             console.log('Altura del usuario (cm):', userHeight);
             
             showMessage(`Iniciando grabación para paciente: ${patientId}`);

@@ -480,7 +480,7 @@ class VideoProcessor:
         for camera_id in camera_manager.cameras:
             if camera_id not in self.current_writers:
                 # Obtener un frame para determinar dimensiones
-                frame = camera_manager.get_frame(camera_id)
+                frame = camera_manager.get_frame(camera_id)[0]
                 if frame is not None:
                     height, width = frame.shape[:2]
                     # Obtener FPS real de la cámara
