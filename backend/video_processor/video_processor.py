@@ -479,39 +479,30 @@ class VideoProcessor:
         
         for camera_id in camera_manager.cameras:
             if camera_id not in self.current_writers:
+                # Obtener un frame para determinar dimensiones
+                frame = camera_manager.get_frame(camera_id)
+                if frame is not None:
+                    height, width = frame.shape[:2]
+                    # Obtener FPS real de la cámara
+                    fps = camera_manager.cameras[camera_id].get_real_fps()
+                    print(f"Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps (FPS real)")
+
                 if camera_id == 3 or camera_id == 4:  # Cámaras de profundidad
                     output_path_color, output_path_depth = self._generate_chunk_path_depth(camera_id)
+                    print(f"Generando archivo para cámara {camera_id}: {output_path_color}, {output_path_depth}")
                     writer = VideoDepthWriter(camera_id, output_path_color, output_path_depth)
-
-                    # Obtener un frame para determinar dimensiones
-                    frame = camera_manager.get_frame(camera_id)
-                    if frame is not None:
-                        height, width = frame.shape[:2]
-                        # Obtener FPS real de la cámara
-                        fps = camera_manager.cameras[camera_id].get_real_fps()
-
-                        writer = VideoDepthWriter(camera_id, output_path_color, output_path_depth)
                 else:
                     output_path = self._generate_chunk_path(camera_id)
                     print(f"Generando archivo para cámara {camera_id}: {output_path}")
-                    
                     writer = VideoWriter(camera_id, output_path)
-                    
-                    # Obtener un frame para determinar dimensiones
-                    frame = camera_manager.get_frame(camera_id)
-                    if frame is not None:
-                        height, width = frame.shape[:2]
-                        # Obtener FPS real de la cámara
-                        fps = camera_manager.cameras[camera_id].get_real_fps()
-                        print(f"Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps (FPS real)")
                         
-                        if writer.initialize(width, height, fps):
-                            self.current_writers[camera_id] = writer
-                            print(f"Writer creado exitosamente para cámara {camera_id}")
-                        else:
-                            print(f"Error inicializando writer para cámara {camera_id}")
-                    else:
-                        print(f"No se pudo obtener frame de prueba para cámara {camera_id}")
+                if writer.initialize(width, height, fps):
+                    self.current_writers[camera_id] = writer
+                    print(f"Writer creado exitosamente para cámara {camera_id}")
+                else:
+                    print(f"Error inicializando writer para cámara {camera_id}")
+            else:
+                print(f"No se pudo obtener frame de prueba para cámara {camera_id}")
                     
         print(f"Writers activos: {list(self.current_writers.keys())}")
     
