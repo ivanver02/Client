@@ -162,7 +162,8 @@ class VideoDepthWriter:
             self.color_writer.write(color_frame)
             
             # Almacenar frame de profundidad
-            self.depth_frames.append(depth_frame.copy())
+            if depth_frame is not None:
+                self.depth_frames.append(depth_frame.copy())
             
             self.frame_count += 1
             return True
@@ -200,7 +201,7 @@ class VideoDepthWriter:
             
             # Generar información del chunk
             chunk_info = VideoChunk(
-                chunk_id=self.chunk_id,
+                chunk_id=str(uuid.uuid4()),
                 camera_id=self.camera_id,
                 session_id="",  # Se asignará externamente
                 patient_id="",  # Se asignará externamente
@@ -313,7 +314,7 @@ class VideoProcessor:
                             # Para VideoDepthWriter necesitamos color y profundidad
                             color_frame, depth_frame, timestamp = camera_manager.get_depth_frame(camera_id)
                             
-                            if color_frame is not None and depth_frame is not None and camera_id in self.current_writers:
+                            if color_frame is not None and camera_id in self.current_writers:
                                 if writer.write_frames(color_frame, depth_frame):
                                     frames_written_this_cycle += 1
                             elif color_frame is None or depth_frame is None:
@@ -427,7 +428,7 @@ class VideoProcessor:
                             # Para VideoDepthWriter necesitamos color y profundidad
                             color_frame, depth_frame, timestamp = camera_manager.get_depth_frame(camera_id)
                             
-                            if color_frame is not None and depth_frame is not None:
+                            if color_frame is not None:
                                 if writer.write_frames(color_frame, depth_frame):
                                     frames_written[camera_id] += 1
                             elif frame_count % 30 == 0:  # Log cada segundo aproximadamente

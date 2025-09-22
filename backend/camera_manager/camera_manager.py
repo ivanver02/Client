@@ -143,13 +143,13 @@ class OrbbecCamera:
             frames = self.pipeline.wait_for_frames(1000)  
             if not frames:
                 print(f"Cámara {self.camera_id}: wait_for_frames devolvió None")
-                return None
+                return None, None
                 
             #print(f"Cámara {self.camera_id}: Frames obtenidos, buscando color frame...")
             color_frame = frames.get_color_frame()
             if not color_frame:
                 print(f"Cámara {self.camera_id}: No se pudo obtener color frame")
-                return None
+                return None, None
             
             #print(f"Cámara {self.camera_id}: Color frame obtenido, convirtiendo...")
             # Convertir a formato OpenCV (BGR)
@@ -167,29 +167,26 @@ class OrbbecCamera:
             traceback.print_exc()
             return None
     
-    def get_depth_frame(self, camera_id: int) -> Optional[np.ndarray]:
+    def get_depth_frame(self) -> Optional[np.ndarray]:
         """Obtener frame de profundidad y de color de una cámara específica"""
-        if camera_id not in self.cameras:
-            print(f"Cámara {camera_id} no encontrada")
-            return None
-
-        camera = self.cameras[camera_id]
-        if not camera.pipeline:
-            print(f"Cámara {camera_id}: Pipeline no inicializado")
+        if not self.pipeline:
+            print(f"Cámara {self.camera_id}: Pipeline no inicializado")
             return None
             
         try:
             # Obtener frames con timeout
-            frames = camera.pipeline.wait_for_frames(1000)
+            frames = self.pipeline.wait_for_frames(1000)
             if not frames:
-                print(f"Cámara {camera_id}: No se pudieron obtener frames")
-                return None
+                print(f"Cámara {self.camera_id}: No se pudieron obtener frames")
+                return None, None, None
+            
+            timestamp = datetime.now()
             
             #print(f"Cámara {self.camera_id}: Frames obtenidos, buscando color frame...")
             color_frame = frames.get_color_frame()
             if not color_frame:
                 print(f"Cámara {self.camera_id}: No se pudo obtener color frame")
-                return None
+                return None, None, None
             
             #print(f"Cámara {self.camera_id}: Color frame obtenido, convirtiendo...")
             # Convertir a formato OpenCV (BGR)
@@ -200,15 +197,15 @@ class OrbbecCamera:
             # Obtener frame de profundidad
             depth_frame = frames.get_depth_frame()
             if not depth_frame:
-                print(f"Cámara {camera_id}: No se pudo obtener depth frame")
-                return None
+                print(f"Cámara {self.camera_id}: No se pudo obtener depth frame")
+                return color_frame, None, timestamp
             
             # Convertir a numpy array
             width = depth_frame.get_width()
             height = depth_frame.get_height()
             depth_data = np.asanyarray(depth_frame.get_data())
             
-            print(f"Debug - Cámara {camera_id}: Depth frame - width={width}, height={height}, data_size={len(depth_data)}")
+            print(f"Debug - Cámara {self.camera_id}: Depth frame - width={width}, height={height}, data_size={len(depth_data)}")
             
             # Los datos de profundidad suelen ser de 16 bits (2 bytes por píxel)
             # Verificar si necesitamos reinterpretar los datos
@@ -216,17 +213,15 @@ class OrbbecCamera:
             if len(depth_data) == expected_size * 2:
                 # Datos de 16 bits, convertir a uint16
                 depth_data = depth_data.view(np.uint16)
-                print(f"Debug - Cámara {camera_id}: Converted to uint16, new size={len(depth_data)}")
+                print(f"Debug - Cámara {self.camera_id}: Converted to uint16, new size={len(depth_data)}")
             
             # Reshape a formato de imagen (height, width)
             depth_image = depth_data.reshape((height, width))
-
-            timestamp = datetime.now()
             
             return color_frame, depth_image, timestamp
             
         except Exception as e:
-            print(f"Error obteniendo depth frame de cámara {camera_id}: {e}")
+            print(f"Error obteniendo depth frame de cámara {self.camera_id}: {e}")
             return None
     
     def get_real_fps(self) -> int: # Se emplea en _create_new_writers en video_processor.py

@@ -55,6 +55,15 @@ def create_app() -> Flask:
                 'file_size_bytes': chunk.file_size_bytes
             }
             
+            # Detectar si el chunk tiene atributo depth_file_path
+            if hasattr(chunk, 'depth_file_path') and chunk.depth_file_path:
+                files['depth_file'] = open(chunk.depth_file_path, 'rb')
+                data['depth_file_path'] = chunk.depth_file_path
+                data['depth_file_size_bytes'] = chunk.depth_file_size_bytes
+                print(f"Chunk {chunk.chunk_id} incluye depth_file_path: {chunk.depth_file_path}")
+            else:
+                print(f"Chunk {chunk.chunk_id} no tiene depth_file_path")
+            
             response = requests.post(url, files=files, data=data, timeout=30)
             
             if response.status_code == 200:
@@ -259,7 +268,7 @@ def create_app() -> Flask:
                 return jsonify({
                     'success': False,
                     'error': 'Error iniciando grabación'
-                }), 500
+                }, 500)
                 
         except Exception as e:
             return jsonify({
