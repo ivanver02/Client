@@ -36,7 +36,7 @@ class VideoWriter:
     def __init__(self, camera_id: int, output_path: str, timestamp_path: str):
         self.camera_id = camera_id
         self.output_path = output_path
-        self.timestamp_path = timestamp_path
+        self.timestamp_file_path = timestamp_path
         self.writer: Optional[cv2.VideoWriter] = None
         self.timestamp_frames: List[datetime] = []
         self.frame_count = 0
@@ -347,7 +347,7 @@ class VideoProcessor:
                             color_frame, depth_frame, timestamp = camera_manager.get_depth_frame(camera_id)
                             
                             if color_frame is not None and camera_id in self.current_writers:
-                                if writer.write_frames(color_frame, depth_frame):
+                                if writer.write_frames(color_frame, depth_frame, timestamp):
                                     frames_written_this_cycle += 1
                             elif color_frame is None or depth_frame is None:
                                 if frames_captured % 30 == 0:  # Log cada segundo aproximadamente
@@ -362,7 +362,7 @@ class VideoProcessor:
                             # Para VideoWriter solo necesitamos el frame de color
                             color_frame, timestamp = camera_manager.get_frame(camera_id)
                             if color_frame is not None and camera_id in self.current_writers:
-                                if writer.write_frame(color_frame):
+                                if writer.write_frame(color_frame, timestamp):
                                     frames_written_this_cycle += 1
                         
                         else:
