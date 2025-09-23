@@ -41,7 +41,8 @@ def create_app() -> Flask:
             
             # Preparar datos del chunk
             files = {
-                'file': open(chunk.file_path, 'rb')  # Server espera 'file'
+                'file': open(chunk.file_path, 'rb'),  # Server espera 'file'
+                'timestamp_file': open(chunk.timestamp_file_path, 'rb')
             }
             
             data = {
@@ -52,7 +53,8 @@ def create_app() -> Flask:
                 'chunk_number': chunk.sequence_number,  # Server espera chunk_number
                 'duration_seconds': chunk.duration_seconds,
                 'timestamp': chunk.timestamp.isoformat(),
-                'file_size_bytes': chunk.file_size_bytes
+                'file_size_bytes': chunk.file_size_bytes,
+                'timestamp_file_size_bytes': chunk.timestamp_file_size_bytes
             }
             
             # Detectar si el chunk tiene atributo depth_file_path

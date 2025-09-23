@@ -26,17 +26,22 @@ class VideoChunk:
     file_size_bytes: int
     depth_file_path: Optional[str] = None
     depth_file_size_bytes: Optional[int] = None
+    timestamp_file_path: Optional[str] = None
+    timestamp_file_size_bytes: Optional[int] = None
 
 
 class VideoWriter:
     """Manejador de escritura de video para una cámara"""
-    
-    def __init__(self, camera_id: int, output_path: str):
+
+    def __init__(self, camera_id: int, output_path: str, timestamp_path: str):
         self.camera_id = camera_id
         self.output_path = output_path
+        self.timestamp_path = timestamp_path
         self.writer: Optional[cv2.VideoWriter] = None
+        self.timestamp_frames: List[datetime] = []
         self.frame_count = 0
         self.start_time: Optional[datetime] = None
+
         
     def initialize(self, frame_width: int, frame_height: int, fps: int) -> bool:
         """Inicializar el writer de video"""
@@ -60,8 +65,8 @@ class VideoWriter:
         except Exception as e:
             print(f"Error inicializando video writer para cámara {self.camera_id}: {e}")
             return False
-    
-    def write_frame(self, frame) -> bool:
+
+    def write_frame(self, frame, timestamp: datetime) -> bool:
         """Escribir un frame al video"""
         if self.writer is None or not self.writer.isOpened():
             return False
@@ -69,6 +74,7 @@ class VideoWriter:
         try:
             self.writer.write(frame)
             self.frame_count += 1
+            self.timestamp_frames.append(timestamp)
             return True
         except Exception as e:
             print(f"Error escribiendo frame en cámara {self.camera_id}: {e}")
@@ -87,8 +93,14 @@ class VideoWriter:
             if not os.path.exists(self.output_path):
                 print(f"Error: Archivo de video no encontrado: {self.output_path}")
                 return None
+
+            # Guardar timestamps como numpy array
+            if self.timestamp_frames:
+                timestamp_array = np.array(self.timestamp_frames)
+                np.save(self.timestamp_file_path, timestamp_array)
             
             file_size = os.path.getsize(self.output_path)
+            timestamp_size = os.path.getsize(self.timestamp_file_path) if self.timestamp_frames else 0
             duration = (datetime.now() - self.start_time).total_seconds() if self.start_time else 0
             
             # Generar información del chunk
@@ -101,7 +113,9 @@ class VideoWriter:
                 file_path=self.output_path,
                 duration_seconds=duration,
                 timestamp=self.start_time or datetime.now(),
-                file_size_bytes=file_size
+                file_size_bytes=file_size,
+                timestamp_file_path=self.timestamp_file_path,
+                timestamp_file_size_bytes=timestamp_size
             )
             
             print(f"Chunk finalizado para cámara {self.camera_id}: {file_size} bytes, {duration:.2f}s")
@@ -113,16 +127,18 @@ class VideoWriter:
 
 class VideoDepthWriter:
     """Manejador de escritura de video de color y datos de profundidad para una cámara"""
-    
-    def __init__(self, camera_id: int, color_path: str, depth_path: str):
+
+    def __init__(self, camera_id: int, color_path: str, depth_path: str, timestamp_path: str):
         self.camera_id = camera_id
         
         # Paths para archivos de color y profundidad
         self.color_path = color_path
         self.depth_path = depth_path
+        self.timestamp_file_path = timestamp_path
 
         self.color_writer: Optional[cv2.VideoWriter] = None
         self.depth_frames: List[np.ndarray] = []
+        self.timestamp_frames: List[datetime] = []
         self.frame_count = 0
         self.start_time: Optional[datetime] = None
         
@@ -151,8 +167,8 @@ class VideoDepthWriter:
         except Exception as e:
             print(f"Error inicializando video+depth writer para cámara {self.camera_id}: {e}")
             return False
-    
-    def write_frames(self, color_frame: np.ndarray, depth_frame: np.ndarray) -> bool:
+
+    def write_frames(self, color_frame: np.ndarray, depth_frame: np.ndarray, timestamp: datetime) -> bool:
         """Escribir frames de color y profundidad"""
         if self.color_writer is None or not self.color_writer.isOpened():
             return False
@@ -164,6 +180,10 @@ class VideoDepthWriter:
             # Almacenar frame de profundidad
             if depth_frame is not None:
                 self.depth_frames.append(depth_frame.copy())
+            
+            # Almacenar timestamp
+            if timestamp is not None:
+                self.timestamp_frames.append(timestamp)
             
             self.frame_count += 1
             return True
@@ -185,7 +205,12 @@ class VideoDepthWriter:
             if self.depth_frames:
                 depth_array = np.array(self.depth_frames)
                 np.save(self.depth_path, depth_array)
-            
+
+            # Guardar timestamps como numpy array
+            if self.timestamp_frames:
+                timestamp_array = np.array(self.timestamp_frames)
+                np.save(self.timestamp_file_path, timestamp_array)
+
             # Verificar que los archivos se crearon correctamente
             if not os.path.exists(self.color_path):
                 print(f"Error: Archivo de video color no encontrado: {self.color_path}")
@@ -194,9 +219,14 @@ class VideoDepthWriter:
             if not os.path.exists(self.depth_path):
                 print(f"Error: Archivo de profundidad no encontrado: {self.depth_path}")
                 return None
+
+            if not os.path.exists(self.timestamp_file_path):
+                print(f"Error: Archivo de timestamps no encontrado: {self.timestamp_file_path}")
+                return None
             
             color_size = os.path.getsize(self.color_path)
             depth_size = os.path.getsize(self.depth_path)
+            timestamp_size = os.path.getsize(self.timestamp_file_path)
             duration = (datetime.now() - self.start_time).total_seconds() if self.start_time else 0
             
             # Generar información del chunk
@@ -211,7 +241,9 @@ class VideoDepthWriter:
                 duration_seconds=duration,
                 timestamp=self.start_time or datetime.now(),
                 file_size_bytes=color_size,
-                depth_file_size_bytes=depth_size
+                depth_file_size_bytes=depth_size,
+                timestamp_file_path=self.timestamp_file_path,
+                timestamp_file_size_bytes=timestamp_size
             )
             
             print(f"Chunk finalizado - Cámara {self.camera_id}:")
@@ -429,7 +461,7 @@ class VideoProcessor:
                             color_frame, depth_frame, timestamp = camera_manager.get_depth_frame(camera_id)
                             
                             if color_frame is not None:
-                                if writer.write_frames(color_frame, depth_frame):
+                                if writer.write_frames(color_frame, depth_frame, timestamp):
                                     frames_written[camera_id] += 1
                             elif frame_count % 30 == 0:  # Log cada segundo aproximadamente
                                 missing = []
@@ -444,7 +476,7 @@ class VideoProcessor:
                             color_frame, timestamp = camera_manager.get_frame(camera_id)
                             
                             if color_frame is not None:
-                                if writer.write_frame(color_frame):
+                                if writer.write_frame(color_frame, timestamp):
                                     frames_written[camera_id] += 1
                             elif frame_count % 30 == 0:
                                 print(f"Cámara {camera_id}: No se pudo obtener frame de color")
@@ -489,14 +521,14 @@ class VideoProcessor:
                     print(f"Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps (FPS real)")
 
                 if camera_id == 3 or camera_id == 4:  # Cámaras de profundidad
-                    output_path_color, output_path_depth = self._generate_chunk_path_depth(camera_id)
-                    print(f"Generando archivo para cámara {camera_id}: {output_path_color}, {output_path_depth}")
-                    writer = VideoDepthWriter(camera_id, output_path_color, output_path_depth)
+                    output_path_color, output_path_depth, timestamp_path = self._generate_chunk_path_depth(camera_id)
+                    print(f"Generando archivo para cámara {camera_id}: {output_path_color}, {output_path_depth}, {timestamp_path}")
+                    writer = VideoDepthWriter(camera_id, output_path_color, output_path_depth, timestamp_path)
                 else:
-                    output_path = self._generate_chunk_path(camera_id)
-                    print(f"Generando archivo para cámara {camera_id}: {output_path}")
-                    writer = VideoWriter(camera_id, output_path)
-                        
+                    output_path, timestamp_path = self._generate_chunk_path(camera_id)
+                    print(f"Generando archivo para cámara {camera_id}: {output_path}, {timestamp_path}")
+                    writer = VideoWriter(camera_id, output_path, timestamp_path)
+
                 if writer.initialize(width, height, fps):
                     self.current_writers[camera_id] = writer
                     print(f"Writer creado exitosamente para cámara {camera_id}")
@@ -560,11 +592,13 @@ class VideoProcessor:
         
         sequence_number = self.chunk_sequence[camera_id]
         filename = f"{sequence_number}.mp4"
+        filename_timestamps = f"{sequence_number}_timestamps.npy"
         
         print(f"Generando chunk para cámara {camera_id}: secuencia {sequence_number} → {filename}")
-        
-        return os.path.join(camera_dir, filename)
-    
+        print(f"Generando chunk de timestamps para cámara {camera_id}: secuencia {sequence_number} → {filename_timestamps}")
+
+        return os.path.join(camera_dir, filename), os.path.join(camera_dir, filename_timestamps)
+
     def _generate_chunk_path_depth(self, camera_id: int) -> str:
         """Generar ruta para un nuevo chunk"""
         camera_dir = os.path.join(SystemConfig.TEMP_VIDEO_DIR, f"camera{camera_id}")
@@ -580,11 +614,13 @@ class VideoProcessor:
         sequence_number = self.chunk_sequence[camera_id]
         filename_color = f"{sequence_number}_color.mp4"
         filename_depth = f"{sequence_number}_depth.npy"
+        filename_timestamps = f"{sequence_number}_timestamps.npy"
 
         print(f"Generando chunk para cámara {camera_id}: secuencia {sequence_number} → {filename_color}")
         print(f"Generando chunk de profundidad para cámara {camera_id}: secuencia {sequence_number} → {filename_depth}")
+        print(f"Generando chunk de timestamps para cámara {camera_id}: secuencia {sequence_number} → {filename_timestamps}")
 
-        return os.path.join(camera_dir, filename_color), os.path.join(camera_dir, filename_depth)
+        return os.path.join(camera_dir, filename_color), os.path.join(camera_dir, filename_depth), os.path.join(camera_dir, filename_timestamps)
 
     def _cleanup_session_files(self):
         """Limpiar archivos de las cámaras"""
