@@ -520,7 +520,8 @@ class VideoProcessor:
                     fps = camera_manager.cameras[camera_id].get_real_fps()
                     print(f"Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps (FPS real)")
 
-                if camera_id == 3 or camera_id == 4:  # Cámaras de profundidad
+                # IMPORTANTE CAMBIAR TRAS PROBAR
+                if camera_id == 1:  # Cámaras de profundidad
                     output_path_color, output_path_depth, timestamp_path = self._generate_chunk_path_depth(camera_id)
                     print(f"Generando archivo para cámara {camera_id}: {output_path_color}, {output_path_depth}, {timestamp_path}")
                     writer = VideoDepthWriter(camera_id, output_path_color, output_path_depth, timestamp_path)

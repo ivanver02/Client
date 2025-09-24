@@ -70,7 +70,8 @@ class OrbbecCamera:
             
             ob_config.enable_stream(self.color_profile)
 
-            if self.camera_id == 3 or self.camera_id == 4:
+            # IMPORTANTE CAMBIAR TRAS PROBAR
+            if self.camera_id == 1:
                 # Habilitar sensor de profundidad si está disponible
                 try:
                     depth_profile_list = self.pipeline.get_stream_profile_list(OBSensorType.DEPTH_SENSOR)
@@ -167,59 +168,59 @@ class OrbbecCamera:
             traceback.print_exc()
             return None
     
-    def get_depth_frame(self) -> Optional[np.ndarray]:
-        """Obtener frame de profundidad y de color de una cámara específica"""
+    def get_depth_frame(self):
+        """Obtener frame de profundidad y de color de una cámara específica. Si no hay frame de profundidad, usa el último disponible (excepto el primero)."""
         if not self.pipeline:
             print(f"Cámara {self.camera_id}: Pipeline no inicializado")
             return None
-            
+
+        # Guardar el último frame de profundidad como atributo de instancia
+        if not hasattr(self, '_last_depth_image'):
+            self._last_depth_image = None
+
         try:
-            # Obtener frames con timeout
             frames = self.pipeline.wait_for_frames(1000)
             if not frames:
                 print(f"Cámara {self.camera_id}: No se pudieron obtener frames")
                 return None, None, None
-            
+
             timestamp = datetime.now()
-            
-            #print(f"Cámara {self.camera_id}: Frames obtenidos, buscando color frame...")
+
             color_frame = frames.get_color_frame()
             if not color_frame:
                 print(f"Cámara {self.camera_id}: No se pudo obtener color frame")
                 return None, None, None
-            
-            #print(f"Cámara {self.camera_id}: Color frame obtenido, convirtiendo...")
-            # Convertir a formato OpenCV (BGR)
+
             color_frame = self._frame_to_bgr_image(color_frame)
             if color_frame is None:
                 print(f"Cámara {self.camera_id}: Error en conversión de frame")
-                
-            # Obtener frame de profundidad
+
             depth_frame = frames.get_depth_frame()
             if not depth_frame:
-                print(f"Cámara {self.camera_id}: No se pudo obtener depth frame")
-                return color_frame, None, timestamp
-            
-            # Convertir a numpy array
+                # Si no hay frame de profundidad, usar el último disponible (excepto el primero)
+                if self._last_depth_image is not None:
+                    print(f"Cámara {self.camera_id}: No se pudo obtener depth frame, usando el anterior disponible")
+                    return color_frame, self._last_depth_image, timestamp
+                else:
+                    print(f"Cámara {self.camera_id}: No se pudo obtener depth frame y no hay anterior, saltando")
+                    return color_frame, None, timestamp
+
             width = depth_frame.get_width()
             height = depth_frame.get_height()
             depth_data = np.asanyarray(depth_frame.get_data())
-            
+
             print(f"Debug - Cámara {self.camera_id}: Depth frame - width={width}, height={height}, data_size={len(depth_data)}")
-            
-            # Los datos de profundidad suelen ser de 16 bits (2 bytes por píxel)
-            # Verificar si necesitamos reinterpretar los datos
+
             expected_size = width * height
             if len(depth_data) == expected_size * 2:
-                # Datos de 16 bits, convertir a uint16
                 depth_data = depth_data.view(np.uint16)
                 print(f"Debug - Cámara {self.camera_id}: Converted to uint16, new size={len(depth_data)}")
-            
-            # Reshape a formato de imagen (height, width)
+
             depth_image = depth_data.reshape((height, width))
-            
+            self._last_depth_image = depth_image.copy()
+
             return color_frame, depth_image, timestamp
-            
+
         except Exception as e:
             print(f"Error obteniendo depth frame de cámara {self.camera_id}: {e}")
             return None
