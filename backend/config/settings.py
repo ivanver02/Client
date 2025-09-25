@@ -15,7 +15,7 @@ class CameraConfig:
 @dataclass
 class RecordingConfig:
     """Configuración para grabación"""
-    chunk_duration_seconds: float = 0.5
+    chunk_duration_seconds: float = 1
     output_format: str = "mp4"
 
 

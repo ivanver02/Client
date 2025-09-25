@@ -10,7 +10,6 @@ document.addEventListener('DOMContentLoaded', () => {
         const recordingControls = document.getElementById('recording-controls');
         const patientIdInput = document.getElementById('patient-id');
         const sessionIdInput = document.getElementById('session-id');
-        const userHeightInput = document.getElementById('user-height');
         
         // Verificar que todos los elementos existan
         console.log(' Verificando elementos del DOM:');
@@ -21,7 +20,6 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log('- recordingControls:', recordingControls);
         console.log('- patientIdInput:', patientIdInput);
         console.log('- sessionIdInput:', sessionIdInput);
-        console.log('- userHeightInput:', userHeightInput);
 
     // --- Estado inicial de la aplicación ---
     let state = {
@@ -56,12 +54,18 @@ document.addEventListener('DOMContentLoaded', () => {
         state.isRecording = isRecording;
         startBtn.classList.toggle('hidden', isRecording);
         recordingControls.classList.toggle('hidden', !isRecording);
-        
+        // Ocultar el botón SPPB durante grabación
+        const sppbBtn = document.getElementById('sppb-btn');
+        if (sppbBtn) {
+            if (isRecording) {
+                sppbBtn.classList.add('hidden');
+            } else {
+                sppbBtn.classList.remove('hidden');
+            }
+        }
         // Deshabilitar inputs durante grabación
         patientIdInput.disabled = isRecording;
         sessionIdInput.disabled = isRecording;
-        userHeightInput.disabled = isRecording; // Deshabilitar input de altura del usuario durante grabación
-        
         // Iniciar/detener polling de estado
         if (isRecording) {
             startStatusPolling();
@@ -178,7 +182,6 @@ document.addEventListener('DOMContentLoaded', () => {
         state.patientId = null;
         sessionIdInput.value = "";
         patientIdInput.value = "";
-        userHeightInput.value = ""; // Resetear campo de altura del usuario
         
         // Resetear botones
         if (processBtn) {
@@ -289,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const sessionId = sessionIdInput.value.trim() || '1';
             
             // Example: Log the user height value in centimeters
-            const userHeight = parseInt(userHeightInput.value.trim(), 10) || 170; // Valor por defecto 170 cm
+            const userHeight = 170;
             console.log('Altura del usuario (cm):', userHeight);
             
             showMessage(`Iniciando grabación para paciente: ${patientId}`);

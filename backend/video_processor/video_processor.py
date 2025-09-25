@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Callable
 from dataclasses import dataclass
 
-from ..config.settings import SystemConfig
+from ..config.settings import SystemConfig, CameraConfig
 from ..camera_manager import camera_manager
 
 
@@ -512,13 +512,7 @@ class VideoProcessor:
         
         for camera_id in camera_manager.cameras:
             if camera_id not in self.current_writers:
-                # Obtener un frame para determinar dimensiones
-                frame = camera_manager.get_frame(camera_id)[0]
-                if frame is not None:
-                    height, width = frame.shape[:2]
-                    # Obtener FPS real de la cámara
-                    fps = camera_manager.cameras[camera_id].get_real_fps()
-                    print(f"Inicializando writer para cámara {camera_id}: {width}x{height}@{fps}fps (FPS real)")
+                print(f"Inicializando writer para cámara {camera_id}: {CameraConfig.resolution_width}x{CameraConfig.resolution_height}@{CameraConfig.fps}fps (FPS real)")
 
                 # IMPORTANTE CAMBIAR TRAS PROBAR
                 if camera_id == 1:  # Cámaras de profundidad
@@ -530,7 +524,7 @@ class VideoProcessor:
                     print(f"Generando archivo para cámara {camera_id}: {output_path}, {timestamp_path}")
                     writer = VideoWriter(camera_id, output_path, timestamp_path)
 
-                if writer.initialize(width, height, fps):
+                if writer.initialize(CameraConfig.resolution_width, CameraConfig.resolution_height, CameraConfig.fps):
                     self.current_writers[camera_id] = writer
                     print(f"Writer creado exitosamente para cámara {camera_id}")
                 else:

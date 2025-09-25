@@ -28,19 +28,18 @@
                     <label for="session-id">Número de Sesión</label>
                     <input type="number" id="session-id" placeholder="Por defecto: 1">
                 </div>
-                <div class="input-group">
-                    <label for="user-height">Altura del paciente (cm)</label>
-                    <input type="number" id="user-height" placeholder="Ejemplo: 170" step="1">
-                </div>
             </div>
 
             <div id="controls" class="controls-section">
-                <button id="start-btn" class="btn btn-primary">Comenzar Grabación</button>
+                <div>
+                    <button id="start-btn" class="btn btn-primary">Comenzar Grabación</button>
+                </div>
                 <div id="recording-controls" class="hidden">
                     <p class="recording-status">Grabando...</p>
                     <button id="cancel-btn" class="btn btn-danger">Cancelar</button>
                     <button id="process-btn" class="btn btn-secondary">Finalizar y Procesar</button>
                 </div>
+                <button id="sppb-btn" class="btn btn-success" style="margin-top:20px;">Test SPPB</button>
             </div>
         </main>
 
