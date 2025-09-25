@@ -448,9 +448,9 @@ class VideoProcessor:
                 frames_written = {camera_id: 0 for camera_id in camera_manager.cameras} # Cada id de cámara tendrá asignado el cero al principio, y conforme cree frames, se irán aumentando
                 
                 # Grabar durante la duración del chunk
-                print(f"Iniciando grabación de chunk de {self.config.chunk_duration_seconds} segundos...")
+                print(f"Iniciando grabación de chunk de {self.config.chunk_duration_seconds:.2f} segundos...")
                 frame_count = 0
-                while (time.time() - start_time) < self.config.chunk_duration_seconds and self.recording_active:
+                while (time.time() - start_time) < float(self.config.chunk_duration_seconds) and self.recording_active:
                     # Capturar frames de todas las cámaras (sincronización por software)
                     
                     for camera_id in camera_manager.cameras:
