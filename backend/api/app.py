@@ -577,6 +577,50 @@ def create_app() -> Flask:
             'success': True,
             'session_deleted': session_deleted
         })
+    
+    @app.route('/api/receive/video', methods=['POST'])
+    def receive_video():
+        """Recibir video procesado del servidor"""
+        try:
+            # Verificar que se recibió un archivo de video
+            if 'video' not in request.files:
+                return jsonify({
+                    'success': False,
+                    'error': 'No se encontró archivo de video'
+                }), 400
+            
+            video_file = request.files['video']
+            if video_file.filename == '':
+                return jsonify({
+                    'success': False,
+                    'error': 'Nombre de archivo vacío'
+                }), 400
+            
+            # Obtener datos adicionales del formulario
+            filename = request.form.get('filename', video_file.filename)
+            camera_id = request.form.get('camera_id', '0')
+            chunk_id = request.form.get('chunk_id', 'unknown')
+            
+            # Log de la recepción
+            print(f"Video recibido: {filename}")
+            print(f"Camera ID: {camera_id}")
+            print(f"Chunk ID: {chunk_id}")
+            
+            # Por ahora solo confirmamos la recepción - OK
+            return jsonify({
+                'success': True,
+                'message': 'OK',
+                'filename': filename,
+                'camera_id': camera_id,
+                'chunk_id': chunk_id
+            })
+            
+        except Exception as e:
+            print(f"Error en receive_video: {e}")
+            return jsonify({
+                'success': False,
+                'error': str(e)
+            }), 500
 
     return app
 
