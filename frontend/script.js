@@ -546,6 +546,28 @@ document.addEventListener('DOMContentLoaded', () => {
         console.error('No se encontró el botón de procesar (process-btn)');
     }
 
+    // Event listener para el botón SPPB
+    const sppbBtn = document.getElementById('sppb-btn');
+    if (sppbBtn) {
+        sppbBtn.addEventListener('click', () => {
+            console.log('Navegando a página SPPB...');
+            
+            // Obtener datos actuales del paciente y sesión
+            const patientId = patientIdInput.value || '1';
+            const sessionId = sessionIdInput.value || '1';
+            
+            // Guardar en localStorage para que la página SPPB pueda acceder
+            localStorage.setItem('currentPatientId', patientId);
+            localStorage.setItem('currentSessionId', sessionId);
+            
+            // Navegar a la página SPPB pasando los datos como parámetros
+            window.location.href = `sppb.html?patientId=${encodeURIComponent(patientId)}&sessionId=${encodeURIComponent(sessionId)}`;
+        });
+        console.log('Event listener del botón SPPB configurado');
+    } else {
+        console.error('No se encontró el botón SPPB (sppb-btn)');
+    }
+
     // --- Inicialización ---
     showMessage('Cargando aplicación...');
     initializeSystem();

@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test SPPB - Batería de Rendimiento Físico Corta</title>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .sppb-container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .sppb-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #007bff;
+        }
+        
+        .sppb-section h3 {
+            color: #007bff;
+            margin-bottom: 15px;
+        }
+        
+        .sppb-form {
+            display: grid;
+            gap: 15px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .form-row.video-row {
+            display: flex;
+            justify-content: center;
+            grid-template-columns: none;
+        }
+        
+        .form-row label {
+            font-weight: bold;
+        }
+        
+        .form-row input, .form-row select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .form-row video {
+            border-radius: 8px;
+            border: 2px solid #ddd;
+            max-width: 100%;
+        }
+        
+        .form-row input[readonly] {
+            background-color: #f8f9fa;
+            color: #6c757d;
+        }
+        
+        .test-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        
+        .btn-test {
+            padding: 10px 20px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .btn-test:hover {
+            background-color: #218838;
+        }
+        
+        .btn-secondary {
+            background-color: #6c757d;
+        }
+        
+        .btn-secondary:hover {
+            background-color: #545b62;
+        }
+        
+        .timer-display {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+            text-align: center;
+            padding: 20px;
+            background-color: #e7f3ff;
+            border-radius: 8px;
+            margin: 15px 0;
+        }
+        
+        .results-summary {
+            background-color: #d4edda;
+            border: 1px solid #c3e6cb;
+            border-radius: 4px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+        
+        .score-display {
+            font-size: 18px;
+            font-weight: bold;
+            text-align: center;
+            padding: 10px;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .btn-cancel {
+            background-color: #dc3545;
+        }
+        
+        .btn-cancel:hover {
+            background-color: #c82333;
+        }
+    </style>
+</head>
+<body>
+    <div class="container sppb-container">
+        <header>
+            <h1>Test SPPB - Batería de Rendimiento Físico Corta</h1>
+            <p>Evaluación de rendimiento físico en adultos mayores</p>
+        </header>
+        
+        <main>
+            <!-- Información del Paciente -->
+            <div class="sppb-section">
+                <h3>Información de la Sesión</h3>
+                <div class="sppb-form">
+                    <div class="form-row">
+                        <label for="session-patient-id">ID del Paciente:</label>
+                        <input type="text" id="session-patient-id" readonly>
+                    </div>
+                    <div class="form-row">
+                        <label for="session-number">Número de Sesión:</label>
+                        <input type="text" id="session-number" readonly>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test 1: Equilibrio -->
+            <div class="sppb-section">
+                <h3>Test 1: Equilibrio</h3>
+                
+                <div class="sppb-form">
+                    <div class="form-row video-row">
+                        <video width="320" height="240" controls id="balance-video">
+                            <source src="videos/balance-test.mp4" type="video/mp4">
+                            Video no disponible
+                        </video>
+                    </div>
+                    <div class="test-buttons">
+                        <button class="btn-test" id="start-balance-test">Empezar Prueba de Equilibrio</button>
+                        <button class="btn-test btn-secondary hidden" id="cancel-balance-test">Cancelar Prueba</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test 2: Velocidad de Marcha -->
+            <div class="sppb-section">
+                <h3>Test 2: Velocidad de Marcha</h3>
+                
+                <div class="sppb-form">
+                    <div class="form-row video-row">
+                        <video width="320" height="240" controls id="gait-video">
+                            <source src="videos/gait-test.mp4" type="video/mp4">
+                            Video no disponible
+                        </video>
+                    </div>
+                    <div class="test-buttons">
+                        <button class="btn-test" id="start-gait-test">Empezar Prueba de Marcha</button>
+                        <button class="btn-test btn-secondary hidden" id="cancel-gait-test">Cancelar Prueba</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Test 3: Levantarse de la Silla -->
+            <div class="sppb-section">
+                <h3>Test 3: Levantarse de la Silla</h3>
+                
+                <div class="sppb-form">
+                    <div class="form-row video-row">
+                        <video width="320" height="240" controls id="chair-video">
+                            <source src="videos/chair-test.mp4" type="video/mp4">
+                            Video no disponible
+                        </video>
+                    </div>
+                    <div class="test-buttons">
+                        <button class="btn-test" id="start-chair-test">Empezar Prueba de Silla</button>
+                        <button class="btn-test btn-secondary hidden" id="cancel-chair-test">Cancelar Prueba</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Resumen de Resultados -->
+            <div class="sppb-section results-summary">
+                <h3>Resumen de Resultados</h3>
+                <div class="sppb-form">
+                    <div class="form-row">
+                        <label><strong>Los resultados se mostrarán aquí después de completar las pruebas</strong></label>
+                        <span id="results-placeholder">Pendiente...</span>
+                    </div>
+                </div>
+                
+                <div class="test-buttons">
+                    <button class="btn-test btn-secondary" id="back-to-main">Volver al Menú Principal</button>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <p>&copy; 2025 - Test SPPB - Sistema de Análisis de Marcha</p>
+        </footer>
+    </div>
+
+    <script src="sppb.js"></script>
+</body>
+</html>

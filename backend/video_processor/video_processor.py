@@ -28,6 +28,7 @@ class VideoChunk:
     depth_file_size_bytes: Optional[int] = None
     timestamp_file_path: Optional[str] = None
     timestamp_file_size_bytes: Optional[int] = None
+    test_type: Optional[str] = None
 
 
 class VideoWriter:
@@ -265,6 +266,7 @@ class VideoProcessor:
         self.recording_active = False
         self.session_id: Optional[str] = None
         self.patient_id: Optional[str] = None
+        self.test_type: Optional[str] = None
         self.current_writers: Dict[int, VideoWriter] = {}
         self.chunk_sequence: Dict[int, int] = {}  # Indica, para cada cámara (identificada por el índice del diccionario), el número de secuencia del chunk que se está grabando
         self.recording_thread: Optional[threading.Thread] = None
@@ -274,13 +276,14 @@ class VideoProcessor:
         self.config = SystemConfig.RECORDING
     # (Lock eliminado)
     
-    def start_session(self, patient_id: str, session_id: str = "1") -> str: # Se emplea en el start_recording del app.py
+    def start_session(self, patient_id: str, session_id: str = "1", test_type: str = None) -> str: # Se emplea en el start_recording del app.py
         """Iniciar nueva sesión de grabación"""
         if self.recording_active:
             raise Exception("Ya hay una sesión activa")
             
         self.session_id = session_id  # Usar el session_id proporcionado
         self.patient_id = patient_id
+        self.test_type = test_type
         self.chunk_sequence.clear()
         
         # Limpiar directorios de cámaras existentes
@@ -290,7 +293,7 @@ class VideoProcessor:
         for camera_id in camera_manager.cameras:
             self.chunk_sequence[camera_id] = 0
             
-        print(f"Nueva sesión iniciada: {self.session_id} para paciente: {self.patient_id}")
+        print(f"Nueva sesión iniciada: {self.session_id} para paciente: {self.patient_id}, test: {self.test_type}")
         return self.session_id
     
     def start_recording(self) -> bool:
@@ -555,6 +558,7 @@ class VideoProcessor:
         if chunk:
             chunk.session_id = self.session_id
             chunk.patient_id = self.patient_id
+            chunk.test_type = self.test_type
             chunk.sequence_number = self.chunk_sequence[camera_id]
             # Incrementar DESPUÉS de asignar el número al chunk
             self.chunk_sequence[camera_id] += 1
@@ -659,6 +663,7 @@ class VideoProcessor:
             # Limpiar estado de la sesión
             self.session_id = None
             self.patient_id = None
+            self.test_type = None
             self.chunk_sequence.clear()
             self.current_writers.clear()
             

@@ -37,7 +37,15 @@ def create_app() -> Flask:
     def upload_chunk_to_server(chunk: VideoChunk):
         """Enviar chunk al servidor de procesamiento"""
         try:
-            url = f"{SystemConfig.SERVER.base_url}{SystemConfig.SERVER.upload_endpoint}" 
+            # Seleccionar endpoint basado en el tipo de test
+            if chunk.test_type and chunk.test_type in ['balance', 'gait', 'chair']:
+                endpoint = SystemConfig.SERVER.upload_sppb_endpoint
+                print(f"Enviando chunk SPPB del test '{chunk.test_type}' al endpoint: {endpoint}")
+            else:
+                endpoint = SystemConfig.SERVER.upload_endpoint
+                print(f"Enviando chunk regular al endpoint: {endpoint}")
+            
+            url = f"{SystemConfig.SERVER.base_url}{endpoint}" 
             
             # Preparar datos del chunk
             files = {
@@ -56,6 +64,10 @@ def create_app() -> Flask:
                 'file_size_bytes': chunk.file_size_bytes,
                 'timestamp_file_size_bytes': chunk.timestamp_file_size_bytes
             }
+            
+            # Agregar test_type si está disponible
+            if chunk.test_type:
+                data['test_type'] = chunk.test_type
             
             # Detectar si el chunk tiene atributo depth_file_path
             if hasattr(chunk, 'depth_file_path') and chunk.depth_file_path:
@@ -225,6 +237,7 @@ def create_app() -> Flask:
             patient_id = data.get('patient_id', '1')
             session_id = data.get('session_id', '1')
             height = data.get('user_height', 170.0)  # Altura en cm
+            test_type = data.get('test_type', None)  # Tipo de test (balance, gait, chair)
             
             # Reiniciar flag de fallo de cámaras al iniciar nueva sesión
             global camera_failure_detected
@@ -238,7 +251,7 @@ def create_app() -> Flask:
                 }), 400
             
             # Iniciar sesión
-            result_session_id = video_processor.start_session(patient_id, session_id)
+            result_session_id = video_processor.start_session(patient_id, session_id, test_type)
             
             # Notificar al servidor que la sesión inició (el servidor maneja automáticamente el cierre de sesiones anteriores)
             try:

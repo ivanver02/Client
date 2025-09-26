@@ -24,6 +24,7 @@ class ServerConfig:
     """Configuración del servidor remoto"""
     base_url: str = "http://192.168.159.101:11300"
     upload_endpoint: str = "/api/chunks/receive"
+    upload_sppb_endpoint: str = "/api/chunks/receive_sppb"
     session_start_endpoint: str = "/api/session/start"
     session_end_endpoint: str = "/api/session/end"  # Endpoint para finalizar sesión normalmente
     session_cancel_endpoint: str = "/api/session/cancel"  # Endpoint para cancelar sesión (elimina datos)
