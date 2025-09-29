@@ -1,8 +1,10 @@
+import mimetypes
 import os
 import time
 import threading
 import requests
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file, make_response
+import re
 from flask_cors import CORS
 from datetime import datetime
 
@@ -15,6 +17,11 @@ camera_failure_detected = False
 
 
 def create_app() -> Flask:
+    # Configurar MIME types para video
+    mimetypes.add_type('video/mp4', '.mp4')
+    mimetypes.add_type('video/webm', '.webm')
+    mimetypes.add_type('video/ogg', '.ogv')
+
     # Ajustar la ruta para que apunte a la carpeta 'frontend' en el directorio raíz
     frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend'))
     app = Flask(__name__, static_folder=frontend_dir)
@@ -31,7 +38,56 @@ def create_app() -> Flask:
 
     @app.route('/<path:path>')
     def serve_static(path):
-        """Servir otros archivos estáticos (JS, CSS, etc.)"""
+        """Servir otros archivos estáticos (JS, CSS, videos, etc.)"""
+        file_path = os.path.join(app.static_folder, path)
+        
+        # Si es un archivo de video, usar headers específicos con Range requests
+        if path.endswith(('.mp4', '.webm', '.ogv', '.avi', '.mov')):
+            if os.path.exists(file_path):
+                # Obtener el tamaño del archivo
+                file_size = os.path.getsize(file_path)
+                
+                # Verificar si es una solicitud de rango (Range request)
+                range_header = request.headers.get('Range')
+                
+                if range_header:
+                    # Parsear el header Range
+                    byte_start = 0
+                    byte_end = file_size - 1
+                    
+                    range_match = re.match(r'bytes=(\d+)-(\d*)', range_header)
+                    if range_match:
+                        byte_start = int(range_match.group(1))
+                        if range_match.group(2):
+                            byte_end = int(range_match.group(2))
+                    
+                    # Asegurar que no exceda el tamaño del archivo
+                    byte_end = min(byte_end, file_size - 1)
+                    
+                    # Leer el rango específico
+                    with open(file_path, 'rb') as f:
+                        f.seek(byte_start)
+                        data = f.read(byte_end - byte_start + 1)
+                    
+                    # Crear respuesta parcial (206)
+                    response = make_response(data)
+                    response.status_code = 206
+                    response.headers['Content-Range'] = f'bytes {byte_start}-{byte_end}/{file_size}'
+                    response.headers['Accept-Ranges'] = 'bytes'
+                    response.headers['Content-Length'] = str(len(data))
+                    response.headers['Content-Type'] = 'video/mp4' if path.endswith('.mp4') else 'video/webm'
+                    return response
+                else:
+                    # Respuesta completa con headers para video
+                    response = send_file(file_path, 
+                                       mimetype='video/mp4' if path.endswith('.mp4') else 'video/webm',
+                                       as_attachment=False,
+                                       conditional=True)
+                    response.headers['Accept-Ranges'] = 'bytes'
+                    response.headers['Content-Length'] = str(file_size)
+                    response.headers['Cache-Control'] = 'no-cache'
+                    return response
+        
         return send_from_directory(app.static_folder, path)
 
     # Callback para envío de chunks al servidor
@@ -599,29 +655,72 @@ def create_app() -> Flask:
                     'success': False,
                     'error': 'No se encontró archivo de video'
                 }), 400
-            
+
             video_file = request.files['video']
             if video_file.filename == '':
                 return jsonify({
                     'success': False,
                     'error': 'Nombre de archivo vacío'
                 }), 400
-            
+
             # Obtener datos adicionales del formulario
             filename = request.form.get('filename', video_file.filename)
             camera_id = request.form.get('camera_id', '0')
             chunk_id = request.form.get('chunk_id', 'unknown')
-            
+            patient_id = request.form.get('patient_id', 'patient34')
+            session_id = request.form.get('session_id', 'session20')
+
             # Log de la recepción
             print(f"Video recibido: {filename}")
             print(f"Camera ID: {camera_id}")
             print(f"Chunk ID: {chunk_id}")
-            
+
             # Guardar el video en frontend/videos_uploaded
             save_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'videos_uploaded'))
             os.makedirs(save_dir, exist_ok=True)
             save_path = os.path.join(save_dir, filename)
             video_file.save(save_path)
+
+            # Convertir el video a formato web-compatible (como en /api/convert-video)
+            import subprocess
+            frontend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend'))
+            # Directorio de salida para videos convertidos
+            converted_dir = os.path.join(frontend_dir, 'data', 'converted_videos', patient_id, session_id, f"camera{camera_id}")
+            os.makedirs(converted_dir, exist_ok=True)
+            # Nombre de archivo convertido
+            output_file = os.path.join(converted_dir, f'{chunk_id}_converted.mp4')
+            relative_output = f'data/converted_videos/{patient_id}/{session_id}/{camera_id}/{chunk_id}_converted.mp4'
+
+            try:
+                cmd = [
+                    'ffmpeg',
+                    '-i', save_path,
+                    '-c:v', 'libx264',
+                    '-profile:v', 'baseline',
+                    '-level', '3.0',
+                    '-pix_fmt', 'yuv420p',
+                    '-c:a', 'aac',
+                    '-b:a', '128k',
+                    '-movflags', '+faststart',
+                    '-y',
+                    output_file
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
+                if result.returncode == 0:
+                    conversion_success = True
+                    conversion_message = 'Video convertido exitosamente'
+                else:
+                    conversion_success = False
+                    conversion_message = f'Error de ffmpeg: {result.stderr}'
+            except subprocess.TimeoutExpired:
+                conversion_success = False
+                conversion_message = 'Timeout en conversión'
+            except FileNotFoundError:
+                conversion_success = False
+                conversion_message = 'ffmpeg no encontrado. Instalar FFmpeg.'
+            except Exception as e:
+                conversion_success = False
+                conversion_message = f'Error en conversión: {str(e)}'
 
             return jsonify({
                 'success': True,
@@ -629,9 +728,12 @@ def create_app() -> Flask:
                 'filename': filename,
                 'camera_id': camera_id,
                 'chunk_id': chunk_id,
-                'save_path': save_path
+                'save_path': save_path,
+                'converted': conversion_success,
+                'converted_path': relative_output if conversion_success else None,
+                'conversion_message': conversion_message
             })
-            
+
         except Exception as e:
             print(f"Error en receive_video: {e}")
             return jsonify({
