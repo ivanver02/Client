@@ -1,5 +1,6 @@
 import os
 import time
+import threading
 import requests
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -34,98 +35,108 @@ def create_app() -> Flask:
         return send_from_directory(app.static_folder, path)
 
     # Callback para envío de chunks al servidor
+    # --- Sincronización estricta de envío de chunks ---
+    from threading import Lock
+    chunk_sync_buffer = {}
+    chunk_sync_lock = Lock()
+
     def upload_chunk_to_server(chunk: VideoChunk):
-        """Enviar chunk al servidor de procesamiento"""
+        """Sincroniza y envía los chunks de todas las cámaras juntos por secuencia"""
         try:
-            # Seleccionar endpoint basado en el tipo de test
+            num_cameras = len(camera_manager.cameras)
+            seq = chunk.sequence_number
+            with chunk_sync_lock:
+                if seq not in chunk_sync_buffer:
+                    chunk_sync_buffer[seq] = {}
+                chunk_sync_buffer[seq][chunk.camera_id] = chunk
+                print(f"[SYNC] Chunk recibido: cámara {chunk.camera_id}, secuencia {seq} (total en buffer: {len(chunk_sync_buffer[seq])}/{num_cameras})")
+                # Solo enviar si están todos los chunks de la secuencia
+                if len(chunk_sync_buffer[seq]) < num_cameras:
+                    return
+                # Preparar lista de chunks a enviar
+                chunks_to_send = [chunk_sync_buffer[seq][cid] for cid in sorted(chunk_sync_buffer[seq].keys())]
+                del chunk_sync_buffer[seq]
+
+            print(f"[SYNC] Enviando grupo de chunks de secuencia {seq}...")
+            threads = []
+            for c in chunks_to_send:
+                t = threading.Thread(target=_send_chunk, args=(c,))
+                t.start()
+                threads.append(t)
+            # Esperar a que todos los envíos terminen antes de permitir la siguiente secuencia
+            for t in threads:
+                t.join()
+            print(f"[SYNC] Todos los chunks de secuencia {seq} enviados.")
+        except Exception as e:
+            print(f"Error en sincronización de chunks: {e}")
+
+    def _send_chunk(chunk: VideoChunk):
+        try:
             if chunk.test_type and chunk.test_type in ['balance', 'gait', 'chair']:
                 endpoint = SystemConfig.SERVER.upload_sppb_endpoint
                 print(f"Enviando chunk SPPB del test '{chunk.test_type}' al endpoint: {endpoint}")
             else:
                 endpoint = SystemConfig.SERVER.upload_endpoint
                 print(f"Enviando chunk regular al endpoint: {endpoint}")
-            
-            url = f"{SystemConfig.SERVER.base_url}{endpoint}" 
-            
-            # Preparar datos del chunk
+            url = f"{SystemConfig.SERVER.base_url}{endpoint}"
             files = {
-                'file': open(chunk.file_path, 'rb'),  # Server espera 'file'
+                'file': open(chunk.file_path, 'rb'),
                 'timestamp_file': open(chunk.timestamp_file_path, 'rb')
             }
-            
             data = {
                 'chunk_id': chunk.chunk_id,
                 'camera_id': chunk.camera_id,
                 'session_id': chunk.session_id,
                 'patient_id': chunk.patient_id,
-                'chunk_number': chunk.sequence_number,  # Server espera chunk_number
+                'chunk_number': chunk.sequence_number,
                 'duration_seconds': chunk.duration_seconds,
                 'timestamp': chunk.timestamp.isoformat(),
                 'file_size_bytes': chunk.file_size_bytes,
                 'timestamp_file_size_bytes': chunk.timestamp_file_size_bytes
             }
-            
-            # Agregar test_type si está disponible
             if chunk.test_type:
                 data['test_type'] = chunk.test_type
-            
-            # Detectar si el chunk tiene atributo depth_file_path
             if hasattr(chunk, 'depth_file_path') and chunk.depth_file_path:
-                files['depth_file'] = open(chunk.depth_file_path, 'rb')
-                data['depth_file_path'] = chunk.depth_file_path
-                data['depth_file_size_bytes'] = chunk.depth_file_size_bytes
-                print(f"Chunk {chunk.chunk_id} incluye depth_file_path: {chunk.depth_file_path}")
+                # Comprimir el archivo de profundidad antes de enviarlo
+                import gzip
+                import shutil
+                compressed_depth_path = chunk.depth_file_path + '.gz'
+                if not os.path.exists(compressed_depth_path) or os.path.getmtime(compressed_depth_path) < os.path.getmtime(chunk.depth_file_path):
+                    with open(chunk.depth_file_path, 'rb') as f_in, gzip.open(compressed_depth_path, 'wb') as f_out:
+                        shutil.copyfileobj(f_in, f_out)
+                files['depth_file'] = open(compressed_depth_path, 'rb')
+                data['depth_file_path'] = compressed_depth_path
+                data['depth_file_size_bytes'] = os.path.getsize(compressed_depth_path)
+                print(f"Chunk {chunk.chunk_id} incluye depth_file_path comprimido: {compressed_depth_path}")
             else:
                 print(f"Chunk {chunk.chunk_id} no tiene depth_file_path")
-            
             response = requests.post(url, files=files, data=data, timeout=30)
-            
             if response.status_code == 200:
                 print(f"Chunk enviado exitosamente: {chunk.chunk_id}")
-                # Eliminar archivo local después del envío exitoso
-                '''
-                IMPORTANTE: se podrían borrar los archivos locales tras enviarlos al servidor.
-                Lo suyo es guardarlos en una base de datos en el futuro.
-                '''
-                """
-                try:
-                    os.remove(chunk.file_path)
-                except Exception as e:
-                    print(f"Error eliminando archivo local: {e}")
-                """
             elif response.status_code == 500:
-                # Verificar si es un error de fallo de cámaras
                 try:
                     error_data = response.json()
                     if error_data.get('error') == 'CAMERA_FAILURE_DETECTED':
                         print(f"FALLO DE CÁMARAS DETECTADO POR EL SERVIDOR")
                         print(f"Mensaje: {error_data.get('message', 'Error de cámaras')}")
                         print(f"Acción requerida: {error_data.get('action_required', 'Reiniciar switch')}")
-                        
-                        # Marcar que hubo un fallo de cámaras
                         global camera_failure_detected
                         camera_failure_detected = True
-                        
-                        # Cancelar la sesión actual inmediatamente
                         try:
                             print("Cancelando sesión local debido a fallo de cámaras...")
                             video_processor.cancel_current_session()
                             print("Sesión local cancelada por fallo de cámaras")
                         except Exception as cancel_error:
                             print(f"Error cancelando sesión local: {cancel_error}")
-                        
-                        return  # No continuar procesando este chunk
+                        return
                 except:
-                    pass  # Si no se puede parsear como JSON, continuar con el manejo normal
-                    
+                    pass
                 print(f"Error 500 enviando chunk: {response.status_code} - {response.text}")
             else:
                 print(f"Error enviando chunk: {response.status_code} - {response.text}")
-                
         except Exception as e:
-            print(f"Error en upload_chunk_to_server: {e}")
+            print(f"Error en _send_chunk: {e}")
         finally:
-            # Cerrar archivo
             try:
                 files['file'].close()
             except:
@@ -638,7 +649,7 @@ def run_server(): # Ejecuta el servidor Flask
     print(f"Servidor de procesamiento: {SystemConfig.SERVER.base_url}")
 
     app.run(
-        host=SystemConfig.LOCAL_API_HOST,
+        host="0.0.0.0",
         port=SystemConfig.LOCAL_API_PORT,
         debug=True,
         threaded=True

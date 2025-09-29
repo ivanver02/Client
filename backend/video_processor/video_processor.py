@@ -537,20 +537,46 @@ class VideoProcessor:
                     
         print(f"Writers activos: {list(self.current_writers.keys())}")
     
+    # --- Sincronización estricta de subida de chunks ---
+    from threading import Lock
+    _sync_buffer = {}
+    _sync_lock = Lock()
+
     def _finalize_current_chunks(self):
-        """Finalizar chunks actuales y enviarlos"""
+        """Finalizar chunks actuales y subirlos solo cuando estén todos los de la secuencia"""
         chunks_to_upload = []
-        
         for camera_id, writer in list(self.current_writers.items()):
             chunk = self._finalize_writer(camera_id, writer)
             if chunk:
                 chunks_to_upload.append(chunk)
-        
         self.current_writers.clear()
-        
-        # Enviar chunks en paralelo
-        for chunk in chunks_to_upload:
-            threading.Thread(target=self._upload_chunk, args=(chunk,), daemon=True).start()
+
+        if not chunks_to_upload:
+            return
+
+        # Sincronización estricta: agrupar por secuencia
+        seq = chunks_to_upload[0].sequence_number
+        num_cameras = len(camera_manager.cameras)
+        with self._sync_lock:
+            if seq not in self._sync_buffer:
+                self._sync_buffer[seq] = {}
+            for chunk in chunks_to_upload:
+                self._sync_buffer[seq][chunk.camera_id] = chunk
+            print(f"[SYNC] Buffer secuencia {seq}: {len(self._sync_buffer[seq])}/{num_cameras}")
+            if len(self._sync_buffer[seq]) < num_cameras:
+                return  # Esperar a que estén todos los chunks de la secuencia
+            # Todos los chunks de la secuencia están listos
+            chunks_group = [self._sync_buffer[seq][cid] for cid in sorted(self._sync_buffer[seq].keys())]
+            del self._sync_buffer[seq]
+
+        print(f"[SYNC] Subiendo grupo de chunks de secuencia {seq}...")
+        threads = []
+        for chunk in chunks_group:
+            t = threading.Thread(target=self._upload_chunk, args=(chunk,), daemon=True)
+            t.start()
+            threads.append(t)
+        # No esperar a que terminen los hilos de subida para no bloquear la grabación
+        print(f"[SYNC] Todos los envíos de la secuencia {seq} disparados.")
     
     def _finalize_writer(self, camera_id: int, writer: VideoWriter) -> Optional[VideoChunk]:
         """Finalizar un writer específico"""
