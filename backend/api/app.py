@@ -617,13 +617,19 @@ def create_app() -> Flask:
             print(f"Camera ID: {camera_id}")
             print(f"Chunk ID: {chunk_id}")
             
-            # Por ahora solo confirmamos la recepción - OK
+            # Guardar el video en frontend/videos_uploaded
+            save_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', 'frontend', 'videos_uploaded'))
+            os.makedirs(save_dir, exist_ok=True)
+            save_path = os.path.join(save_dir, filename)
+            video_file.save(save_path)
+
             return jsonify({
                 'success': True,
-                'message': 'OK',
+                'message': 'Video guardado correctamente',
                 'filename': filename,
                 'camera_id': camera_id,
-                'chunk_id': chunk_id
+                'chunk_id': chunk_id,
+                'save_path': save_path
             })
             
         except Exception as e:
