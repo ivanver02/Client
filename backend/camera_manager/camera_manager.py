@@ -71,7 +71,7 @@ class OrbbecCamera:
             ob_config.enable_stream(self.color_profile)
 
             # IMPORTANTE CAMBIAR TRAS PROBAR
-            if self.camera_id == 1:
+            if self.camera_id == 1:  
                 # Habilitar sensor de profundidad si está disponible
                 try:
                     depth_profile_list = self.pipeline.get_stream_profile_list(OBSensorType.DEPTH_SENSOR)
@@ -199,7 +199,7 @@ class OrbbecCamera:
             if not depth_frame:
                 # Si no hay frame de profundidad, usar el último disponible (excepto el primero)
                 if self._last_depth_image is not None:
-                    print(f"Cámara {self.camera_id}: No se pudo obtener depth frame, usando el anterior disponible")
+                    #print(f"Cámara {self.camera_id}: No se pudo obtener depth frame, usando el anterior disponible")
                     return color_frame, self._last_depth_image, timestamp
                 else:
                     print(f"Cámara {self.camera_id}: No se pudo obtener depth frame y no hay anterior, saltando")
@@ -209,12 +209,12 @@ class OrbbecCamera:
             height = depth_frame.get_height()
             depth_data = np.asanyarray(depth_frame.get_data())
 
-            print(f"Debug - Cámara {self.camera_id}: Depth frame - width={width}, height={height}, data_size={len(depth_data)}")
+            #print(f"Debug - Cámara {self.camera_id}: Depth frame - width={width}, height={height}, data_size={len(depth_data)}")
 
             expected_size = width * height
             if len(depth_data) == expected_size * 2:
                 depth_data = depth_data.view(np.uint16)
-                print(f"Debug - Cámara {self.camera_id}: Converted to uint16, new size={len(depth_data)}")
+                #print(f"Debug - Cámara {self.camera_id}: Converted to uint16, new size={len(depth_data)}")
 
             depth_image = depth_data.reshape((height, width))
             self._last_depth_image = depth_image.copy()

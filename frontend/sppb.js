@@ -1,6 +1,25 @@
 document.addEventListener('DOMContentLoaded', () => {
     console.log('SPPB Test - Iniciando aplicación...');
 
+    // --- Buffer de chunks de video por test ---
+    const videoChunkBuffers = {
+        'balance': [],
+        'gait': [],
+        'chair': []
+    };
+    // Para saber cuál es el chunk que se está reproduciendo
+    const currentChunkIndex = {
+        'balance': 0,
+        'gait': 0,
+        'chair': 0
+    };
+    // Para saber si está reproduciendo
+    const isPlaying = {
+        'balance': false,
+        'gait': false,
+        'chair': false
+    };
+
     // --- Elementos del DOM ---
     const elements = {
         // Información de la sesión
@@ -51,7 +70,97 @@ document.addEventListener('DOMContentLoaded', () => {
         sessionCheck: '/api/session/check',
         sessionDelete: '/api/session/delete',
         testCancel: '/api/session/test_cancel'
+            ,videoChunks: '/api/receive/video/chunks' // Nuevo endpoint para chunks
     };
+    // --- Funciones para manejo de chunks y reproducción fluida ---
+    async function pollForVideoChunks(testType) {
+        // Solo si hay test activo
+        if (!state.isRecording || state.currentTest !== testType) return;
+        const patientId = elements.sessionPatientId.value.trim() || '1';
+        const sessionId = elements.sessionNumber.value.trim() || '1';
+        try {
+            const url = `${API.videoChunks}?test_type=${encodeURIComponent(testType)}&patient_id=${encodeURIComponent(patientId)}&session_id=${encodeURIComponent(sessionId)}`;
+            const resp = await fetch(url);
+            if (!resp.ok) return;
+            const data = await resp.json();
+            if (!data.chunks) return;
+            // Insertar chunks nuevos en el buffer, evitando duplicados
+            const buffer = videoChunkBuffers[testType];
+            const knownSeqs = new Set(buffer.map(c => c.sequence_number));
+            let newChunkAdded = false;
+            data.chunks.forEach(chunk => {
+                if (!knownSeqs.has(chunk.sequence_number)) {
+                    buffer.push(chunk);
+                    newChunkAdded = true;
+                }
+            });
+            // Ordenar por sequence_number
+            buffer.sort((a, b) => a.sequence_number - b.sequence_number);
+            // Si no está reproduciendo y hay chunks pendientes, iniciar reproducción
+            if ((!isPlaying[testType] && buffer.length > 0 && currentChunkIndex[testType] < buffer.length) || (newChunkAdded && !isPlaying[testType])) {
+                playNextChunk(testType);
+            }
+        } catch (e) {
+            // Silenciar errores de polling
+        }
+    }
+
+    function playNextChunk(testType) {
+        const buffer = videoChunkBuffers[testType];
+        let idx = currentChunkIndex[testType];
+        const bufferLen = buffer.length;
+        if (idx >= bufferLen) {
+            // No hay chunk disponible, esperar a que llegue en el siguiente polling
+            isPlaying[testType] = false;
+            return;
+        }
+        const chunk = buffer[idx];
+        const videoEl = {
+            'balance': elements.balanceVideo,
+            'gait': elements.gaitVideo,
+            'chair': elements.chairVideo
+        }[testType];
+        if (!videoEl) return;
+        // Cambiar el source del video
+        while (videoEl.firstChild) videoEl.removeChild(videoEl.firstChild);
+        const src = document.createElement('source');
+        src.src = chunk.url;
+        src.type = 'video/mp4';
+        videoEl.appendChild(src);
+        videoEl.load();
+        isPlaying[testType] = true;
+        videoEl.play().catch(()=>{});
+        // Cuando termine, intentar reproducir el siguiente chunk si existe
+        videoEl.onended = () => {
+            // Solo incrementar el índice si realmente hay un chunk siguiente
+            if (currentChunkIndex[testType] + 1 < buffer.length) {
+                currentChunkIndex[testType]++;
+                playNextChunk(testType);
+            } else {
+                // No hay más chunks por ahora, esperar a que lleguen
+                currentChunkIndex[testType]++;
+                isPlaying[testType] = false;
+            }
+        };
+    }
+
+    // Limpiar buffer y estado cuando se inicia/cambia de test
+    function resetVideoChunks(testType) {
+        videoChunkBuffers[testType] = [];
+        currentChunkIndex[testType] = 0;
+        isPlaying[testType] = false;
+        const videoEl = {
+            'balance': elements.balanceVideo,
+            'gait': elements.gaitVideo,
+            'chair': elements.chairVideo
+        }[testType];
+        if (videoEl) {
+            videoEl.pause();
+            videoEl.removeAttribute('src');
+            while (videoEl.firstChild) videoEl.removeChild(videoEl.firstChild);
+            videoEl.load();
+        }
+    }
 
     // --- Funciones auxiliares ---
     function showMessage(message, type = 'info') {
@@ -402,6 +511,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Deshabilitar otros botones de test
             disableOtherTestButtons(testType);
+
+            // Limpiar buffer de chunks y estado de reproducción para este test
+            resetVideoChunks(testType);
+            // Iniciar polling de chunks para este test
+            if (state._videoChunkPoller) clearInterval(state._videoChunkPoller);
+            state._videoChunkPoller = setInterval(() => pollForVideoChunks(testType), 700);
             
         } catch (error) {
             console.error(`Error iniciando grabación de ${testType}:`, error);
@@ -449,6 +564,10 @@ document.addEventListener('DOMContentLoaded', () => {
             
             // Marcar test como completado
             markTestAsCompleted(testType);
+
+            // Detener polling y limpiar buffer de chunks
+            if (state._videoChunkPoller) clearInterval(state._videoChunkPoller);
+            resetVideoChunks(testType);
             
             showMessage(`Grabación de ${testType} detenida exitosamente`, 'success');
             alert(`Grabación de ${testType} completada y guardada.`);
@@ -548,6 +667,10 @@ document.addEventListener('DOMContentLoaded', () => {
             // Actualizar estado
             state.isRecording = false;
             state.currentTest = null;
+
+            // Detener polling y limpiar buffer de chunks
+            if (state._videoChunkPoller) clearInterval(state._videoChunkPoller);
+            resetVideoChunks(testType);
             
             showMessage(`Prueba de ${testType} cancelada exitosamente`, 'success');
             alert(`La prueba de ${testType} ha sido cancelada. Las cámaras han sido reiniciadas.`);
