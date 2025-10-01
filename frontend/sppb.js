@@ -516,7 +516,7 @@ document.addEventListener('DOMContentLoaded', () => {
             resetVideoChunks(testType);
             // Iniciar polling de chunks para este test
             if (state._videoChunkPoller) clearInterval(state._videoChunkPoller);
-            state._videoChunkPoller = setInterval(() => pollForVideoChunks(testType), 700);
+            //state._videoChunkPoller = setInterval(() => pollForVideoChunks(testType), 700);
             
         } catch (error) {
             console.error(`Error iniciando grabación de ${testType}:`, error);

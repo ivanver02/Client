@@ -271,28 +271,45 @@ class VideoProcessor:
         self.chunk_sequence: Dict[int, int] = {}  # Indica, para cada cámara (identificada por el índice del diccionario), el número de secuencia del chunk que se está grabando
         self.recording_thread: Optional[threading.Thread] = None
         self.upload_callbacks: List[Callable[[VideoChunk], None]] = []
-        
-        # Configuración
         self.config = SystemConfig.RECORDING
-    # (Lock eliminado)
+
+        # --- NUEVO: Control de envío en orden por cámara ---
+        self._send_locks: Dict[int, threading.Lock] = {}  # Lock por cámara
+        self._send_expected_seq: Dict[int, int] = {}      # Siguiente secuencia esperada por cámara
+        self._send_pending: Dict[int, dict] = {}          # Cola de chunks pendientes por cámara {seq: chunk}
+
+    def _init_send_order_control(self, camera_ids):
+        """Inicializa estructuras de control de envío en orden para las cámaras."""
+        for cam_id in camera_ids:
+            self._send_locks[cam_id] = threading.Lock()
+            self._send_expected_seq[cam_id] = 0
+            self._send_pending[cam_id] = {}
+
+    def _reset_send_order_control(self):
+        self._send_locks.clear()
+        self._send_expected_seq.clear()
+        self._send_pending.clear()
     
     def start_session(self, patient_id: str, session_id: str = "1", test_type: str = None) -> str: # Se emplea en el start_recording del app.py
         """Iniciar nueva sesión de grabación"""
         if self.recording_active:
             raise Exception("Ya hay una sesión activa")
-            
+
         self.session_id = session_id  # Usar el session_id proporcionado
         self.patient_id = patient_id
         self.test_type = test_type
         self.chunk_sequence.clear()
-        
+
         # Limpiar directorios de cámaras existentes
         self._cleanup_camera_directories()
-        
+
         # Inicializar secuencias para cada cámara empezando en 0
         for camera_id in camera_manager.cameras:
             self.chunk_sequence[camera_id] = 0
-            
+
+        # Inicializar control de envío en orden
+        self._init_send_order_control(camera_manager.cameras.keys())
+
         print(f"Nueva sesión iniciada: {self.session_id} para paciente: {self.patient_id}, test: {self.test_type}")
         return self.session_id
     
@@ -556,22 +573,48 @@ class VideoProcessor:
             chunk.patient_id = self.patient_id
             chunk.test_type = self.test_type
             chunk.sequence_number = self.chunk_sequence[camera_id]
+            print(f"[DEBUG] Asignando sequence_number={chunk.sequence_number} a chunk {chunk.chunk_id} de cámara {camera_id}")
             # Incrementar DESPUÉS de asignar el número al chunk
             self.chunk_sequence[camera_id] += 1
-        
         return chunk
     
     def _upload_chunk(self, chunk: VideoChunk):
-        """Subir chunk al servidor (placeholder)"""
+        """Subir chunk al servidor, garantizando el orden por cámara."""
+        cam_id = chunk.camera_id
+        seq = chunk.sequence_number
+        lock = self._send_locks.get(cam_id)
+        if lock is None:
+            # Fallback: inicializar si no existe (debería estar inicializado en start_session)
+            self._send_locks[cam_id] = threading.Lock()
+            self._send_expected_seq[cam_id] = 0
+            self._send_pending[cam_id] = {}
+            lock = self._send_locks[cam_id]
+        with lock:
+            expected = self._send_expected_seq[cam_id]
+            print(f"[DEBUG] _upload_chunk cam={cam_id} seq={seq} expected={expected} pending={list(self._send_pending[cam_id].keys())}")
+            if seq == expected:
+                self._send_chunk_and_advance(chunk, cam_id)
+                # Procesar en orden los pendientes siguientes
+                while self._send_expected_seq[cam_id] in self._send_pending[cam_id]:
+                    next_chunk = self._send_pending[cam_id].pop(self._send_expected_seq[cam_id])
+                    print(f"[DEBUG] Procesando chunk pendiente cam={cam_id} seq={next_chunk.sequence_number}")
+                    self._send_chunk_and_advance(next_chunk, cam_id)
+            else:
+                print(f"[DEBUG] Chunk fuera de orden cam={cam_id} seq={seq} (esperado={expected}), guardando en pending")
+                self._send_pending[cam_id][seq] = chunk
+
+    def _send_chunk_and_advance(self, chunk: VideoChunk, cam_id: int):
+        """Llama a los callbacks y avanza el número de secuencia esperada."""
         try:
-            # Llamar callbacks registrados
+            print(f"[DEBUG] Enviando chunk cam={cam_id} seq={chunk.sequence_number} (expected={self._send_expected_seq[cam_id]})")
             for callback in self.upload_callbacks:
                 callback(chunk)
-                
             print(f"Chunk enviado: Cámara {chunk.camera_id}, Secuencia {chunk.sequence_number}")
-            
         except Exception as e:
             print(f"Error enviando chunk: {e}")
+        finally:
+            self._send_expected_seq[cam_id] += 1
+            print(f"[DEBUG] Nuevo expected_seq para cam={cam_id}: {self._send_expected_seq[cam_id]}")
     
     def _generate_chunk_path(self, camera_id: int) -> str:
         """Generar ruta para un nuevo chunk"""
@@ -651,21 +694,18 @@ class VideoProcessor:
         """Cancelar la sesión actual completamente"""
         try:
             print("Cancelando sesión actual por fallo de cámaras...")
-            
             # Cancelar grabación si está activa
             if self.recording_active:
                 self.cancel_recording()
-            
             # Limpiar estado de la sesión
             self.session_id = None
             self.patient_id = None
             self.test_type = None
             self.chunk_sequence.clear()
             self.current_writers.clear()
-            
+            self._reset_send_order_control()
             print("Sesión cancelada completamente")
             return True
-            
         except Exception as e:
             print(f"Error cancelando sesión: {e}")
             return False

@@ -127,12 +127,6 @@ def create_app() -> Flask:
         chunks.sort(key=lambda x: x['sequence_number'])
         return jsonify({'success': True, 'chunks': chunks})
 
-    # Callback para envío de chunks al servidor
-    # --- Sincronización estricta de envío de chunks ---
-    from threading import Lock
-    chunk_sync_buffer = {}
-    chunk_sync_lock = Lock()
-
     def upload_chunk_to_server(chunk: VideoChunk):
         """Enviar chunk al servidor de procesamiento"""
         try:
@@ -465,7 +459,7 @@ def create_app() -> Flask:
                         print(f"Error enviando chunk final de cámara {chunk.camera_id}: {upload_error}")
             
             # Dar un momento para que se completen las subidas
-            time.sleep(2)
+            time.sleep(3)
             
             # Notificar al servidor que la sesión terminó
             try:
