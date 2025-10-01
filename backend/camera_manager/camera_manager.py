@@ -71,7 +71,7 @@ class OrbbecCamera:
             ob_config.enable_stream(self.color_profile)
 
             # IMPORTANTE CAMBIAR TRAS PROBAR
-            if self.camera_id == 1:  
+            if self.camera_id == 1 or self.camera_id == 0:
                 # Habilitar sensor de profundidad si está disponible
                 try:
                     depth_profile_list = self.pipeline.get_stream_profile_list(OBSensorType.DEPTH_SENSOR)
