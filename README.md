@@ -1,155 +1,86 @@
-# Multi-Camera Medical Frontend for Gait Analysis
+# Multi-Camera Frontend Client for Gait Analysis
 
-This project is a hardware integrated acquisition platform for markerless gait analysis, developed in collaboration between the **University of Malaga** and **Costa del Sol Hospital**. It combines an Orbbec multi-camera setup, a Python acquisition backend, video chunking, session management, and a web interface designed for use in clinical and research environments.
+This is the frontend component of a markerless gait analysis system for knee osteoarthritis, an open source project built at the University of Malaga with Costa del Sol Hospital during a research laboratory placement. It discovers the Orbbec cameras, records them, cuts the recording into chunks of 5 seconds and sends each chunk to the analysis server, which is where 2D pose estimation and 3D reconstruction happen.
 
-The frontend was built to solve the part of the computer-vision pipeline that happens before model inference: discovering and controlling the cameras, acquiring video reliably, organizing patient sessions, and transmitting the resulting data to the analysis server. This makes it the interface between the physical capture system and the downstream 2D pose-estimation and 3D reconstruction pipeline.
+<p align="center">
+  <img src="images/camera0.png" width="32%">
+  <img src="images/camera1.png" width="32%">
+  <img src="images/camera2.png" width="32%">
+</p>
+<p align="center">
+  <img src="images/reconstruction.png" width="62%">
+</p>
+<p align="center"><em>The three views recorded by this client, with the 2D detections and the 3D skeleton that the analysis server computes from them.</em></p>
 
-The project works together with the `markerless-gait-analysis-backend` repository:
+The person in these images is the main author, recorded during development. Sessions with real patients are recorded and kept by the hospital under the GDPR and the Spanish LOPDGDD, and no patient data is committed to this repository.
 
-- **markerless-gait-analysis-frontend**: discovers and controls the cameras, records synchronized multi-camera video, manages sessions, and sends video chunks.
-- **markerless-gait-analysis-backend**: detects 2D keypoints, combines pose-estimation models, reconstructs the pose in 3D, and performs biomechanical analysis.
+There is no hardware trigger between the cameras, so the three views of an instant are three reads of the same loop. Everything downstream treats them as simultaneous, because the relative pose of the cameras is estimated from keypoints that are assumed to belong to one instant.
 
-Both repositories form the complete workflow for multi-camera gait analysis.
+I designed the structure of this client. The analysis server is in the `markerless-gait-analysis-backend` repository.
 
-## System Overview
+## Recording
 
-The client manages Orbbec Gemini 335Le cameras and provides a browser-based interface for the operator. It supports:
+Recording happens in one thread with one loop. Each pass reads a frame from every initialized camera with `wait_for_frames(1000)`, converts the Orbbec RGB buffer to BGR and writes it to the `cv2.VideoWriter` of that camera. The loop does no other work while recording, and no camera can block it for more than one second.
 
-- camera discovery and initialization;
-- synchronized recording across multiple cameras;
-- configuration of recording resolution, frame rate, and format;
-- patient and session identification;
-- segmentation of recordings into processable video chunks;
-- transmission of chunks to the analysis server;
-- real-time session and camera-status monitoring;
-- cancellation and cleanup of temporary recording data.
+The chunks are written as `camera{n}/{sequence}.mp4`, with a counter for each camera, and every finished chunk is uploaded in its own thread while the loop opens the next one. That sequence number is the contract with the analysis server, which only starts fusing the detectors when all the cameras have delivered the same final index.
 
-The architecture separates hardware-specific camera control from video processing and HTTP API logic. This allows the Orbbec implementation to be replaced by a different camera manager if another acquisition device is used.
+The size and the frame rate of each writer are taken from the camera profile that was actually granted, and not from the 640x480 at 30 fps that the configuration asks for. The requested profile is not always available, and a writer opened at the wrong rate produces a file whose duration does not correspond to what happened in the room.
 
-## Repository Structure
+## Session flow
 
-```text
-Client/
-├── main.py
-├── instalar.bat
-├── requirements.txt
-├── backend/
-│   ├── api/
-│   │   ├── app.py
-│   │   └── __init__.py
-│   ├── camera_manager/
-│   │   ├── camera_manager.py
-│   │   └── __init__.py
-│   ├── config/
-│   │   └── settings.py
-│   ├── sdk/
-│   │   └── pyorbbecsdk/
-│   ├── tests/
-│   │   └── grabacion_simple.py
-│   ├── video_processor/
-│   │   ├── video_processor.py
-│   │   └── __init__.py
-│   └── __init__.py
-├── docs/
-│   ├── INSTALACION_SDK.md
-│   └── main_classes.md
-├── frontend/
-│   ├── index.html
-│   ├── script.js
-│   └── style.css
-├── .github/
-│   └── copilot-instructions.md
-├── .gitignore
-├── .gitmodules
-└── LICENSE.md
-```
+The operator opens the page, writes the patient identifier and the session number, and starts the recording. The client notifies the server that the session begins, records until the operator finishes or cancels, and then reports the result to the server as well.
 
-## Acquisition Pipeline
+Stopping needs some care, because the last chunk is the one that can be lost. The recording loop is given up to 15 seconds to finish, and after that up to 30 additional frames are read from each camera to close the current chunk, so that the recording does not end in the middle of a stride. Cancelling takes the opposite path: the writers are released, the local files are deleted and the server is told to discard the session.
 
-### 1. Camera discovery and initialization
+A camera that stops sending video does not fail in an obvious way, it just stalls the session. The server detects this on its side, checking when the first chunk 2 arrives that every camera also produced a chunk 0, and answers the upload with `CAMERA_FAILURE_DETECTED`. The client then cancels the local session, deletes the temporary files and disables the buttons, so that the operator restarts the capture instead of continuing a session that is missing one of the three views. The page polls the recording status every 2 seconds for this reason.
 
-The camera manager discovers the connected Orbbec devices, initializes them, and applies the recording configuration. Camera-specific operations are isolated in `backend/camera_manager/camera_manager.py` so that the rest of the application is independent of the device SDK.
+The Orbbec SDK is only used inside `backend/camera_manager/camera_manager.py`. The rest of the code works with numpy arrays, so supporting cameras of another brand means writing a second manager and not rewriting the client.
 
-### 2. Session creation and recording
+## Running it
 
-The operator starts a session from the web interface by providing a patient identifier and session identifier. The video processor starts acquisition across the available cameras and stores the recordings in temporary chunks.
-
-### 3. Chunk processing and transmission
-
-The recording is divided into chunks that can be processed incrementally. When the recording ends, the client prepares the chunks, sends them to the analysis server, and removes temporary data when appropriate.
-
-### 4. Operator interaction
-
-The web interface exposes the current state of the system and the connected cameras. The operator can start or cancel a session, while the backend coordinates the corresponding hardware, storage, and server requests.
-
-## API Endpoints
-
-| Method | Endpoint | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/system/health` | Check system health and camera availability. |
-| `GET` | `/api/cameras/discover` | Discover connected cameras. |
-| `POST` | `/api/cameras/initialize` | Initialize the cameras for a session. |
-| `POST` | `/api/recording/start` | Start recording across all cameras. |
-| `POST` | `/api/recording/stop` | Stop recording and process the captured videos. |
-| `POST` | `/api/recording/cancel` | Cancel recording and remove temporary data. |
-| `GET` | `/api/session/status` | Query the current session status. |
-| `GET` | `/api/chunks/list` | List the recorded video chunks. |
-
-## Main Components
-
-Detailed documentation of the main classes and methods is available in [`docs/main_classes.md`](docs/main_classes.md).
-
-- [`camera_manager.py`](backend/camera_manager/camera_manager.py): abstracts the Orbbec SDK and manages camera discovery, initialization, and multi-camera control. A different camera brand can be supported by implementing another manager with the same role.
-- [`video_processor.py`](backend/video_processor/video_processor.py): manages recording, video segmentation, temporary storage, and preparation of chunks for transmission and analysis.
-- [`app.py`](backend/api/app.py): implements the Flask application and exposes the endpoints for camera control, session management, recording, and communication with the analysis server.
-- [`settings.py`](backend/config/settings.py): centralizes camera parameters, recording options, paths, server endpoints, and other runtime configuration.
-
-## Running the frontend
-
-Install the Python dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-If required, install the Orbbec SDK using the provided script:
+The SDK is a compiled submodule, so `pip install -r requirements.txt` on its own is not enough. On Windows, with CMake 3.15+ and the Visual Studio Build Tools installed:
 
 ```bash
 instalar.bat
 ```
 
-Configure the analysis server address and port in [`backend/config/settings.py`](backend/config/settings.py). The default configuration points to `192.168.159.101:11299`, but it must be adjusted to match the deployment environment.
+The script clones `pyorbbecsdk`, builds it, copies the `.pyd` and the DLLs next to it, and checks that the import works and that the cameras answer. `docs/INSTALACION_SDK.md` explains the same steps manually.
 
-Start the client backend:
+Set `SystemConfig.SERVER.base_url` in `backend/config/settings.py` to the address of the analysis server, which sits on the same local network, and start the client:
 
 ```bash
 python main.py
 ```
 
-Then open [`frontend/index.html`](frontend/index.html) in a browser, or access `http://localhost:5000` if the backend is configured to serve the frontend.
+The operator page is served at `http://127.0.0.1:5000`. It shows the number of connected cameras and the fields for patient and session, with buttons to start, cancel and finish. There is no video preview, so a camera that stops answering appears through the status polling instead of being seen.
 
-## Configuration and Dependencies
+## Local API
 
-- Runtime configuration is centralized in [`backend/config/`](backend/config/).
-- [`backend/config/settings.py`](backend/config/settings.py) contains camera, recording, storage, and server-connection settings.
-- The Orbbec SDK must be installed and correctly configured. See [`docs/INSTALACION_SDK.md`](docs/INSTALACION_SDK.md) for detailed instructions.
-- [`instalar.bat`](instalar.bat) automates the installation and verification of the SDK and project dependencies.
-- [`backend/sdk/pyorbbecsdk`](backend/sdk/pyorbbecsdk) must contain the SDK cloned from the official Orbbec repository. A project-adapted fork may be required if the upstream SDK is not compatible with the application.
+These are the endpoints used by the page. In the other direction, the client calls four endpoints of the analysis server, all of them configured in `settings.py`: `session/start` when a session opens, `chunks/receive` for every chunk, and `session/end` or `session/cancel` depending on how the session finishes.
 
-The system currently targets Orbbec Gemini 335Le cameras, but the camera-management abstraction allows the acquisition layer to be adapted to other devices.
+| Method | Endpoint | Effect |
+| --- | --- | --- |
+| `GET` | `/api/cameras/discover` | Serial numbers of the connected devices. |
+| `POST` | `/api/cameras/initialize` | Open the pipelines, all discovered devices if none are given. |
+| `GET` | `/api/cameras/status` | Read one frame per camera to see which ones answer. |
+| `POST` | `/api/recording/start` | Open the session, announce it to the server and start the loop. |
+| `GET` | `/api/recording/status` | Recording state and the camera failure flag that the page polls. |
+| `POST` | `/api/recording/stop` | Close and upload the final chunks, end the session on the server. |
+| `POST` | `/api/recording/cancel` | Stop, delete the local files, tell the server to discard the session. |
+| `GET` | `/api/system/health` | Initialized cameras, recording state, server address in use. |
+| `POST` | `/api/system/cleanup` | Release the camera pipelines. |
 
-## Development and Testing
+`docs/main_classes.md` describes the classes behind these endpoints.
 
-The [`backend/tests/`](backend/tests/) directory contains manual test scripts and prototypes, including [`grabacion_simple.py`](backend/tests/grabacion_simple.py). Camera discovery and recording should be tested before using the system in a clinical session.
+## Limitations
 
-## Research and Clinical Context
-
-Reliable data acquisition is essential in a multi-view computer-vision system. A missing camera, inconsistent recording configuration, or poorly organized session can affect every subsequent stage, from 2D keypoint detection to 3D reconstruction. This client therefore treats acquisition, synchronization, session provenance, and operator feedback as first-class parts of the research pipeline.
-
-The system is intended for research and clinical evaluation support. Its outputs should be interpreted by qualified professionals and are not, by themselves, a medical diagnosis.
+- There is no hardware trigger and no alignment by timestamp between views. The offset between cameras was verified visually and is not characterized.
+- The cameras are initialized one by one with a pause of 0.5 s between them, which was needed to avoid conflicts of resources and makes the startup slower than it seems.
+- A failed upload is logged and the chunk stays on disk. There is no retry queue.
+- The state of the session lives in module level singletons, one session at a time, and restarting the process loses it.
+- Windows in practice: the installer is a `.bat` file and the SDK binaries come from `lib/win_x64`.
+- `backend/tests/grabacion_simple.py` is a prototype for checking the cameras by hand, not a test suite.
 
 ## License
 
-This project is licensed under the Apache License 2.0. See [`LICENSE.md`](LICENSE.md) for the complete terms.
-
-Developed by the **University of Malaga** and **Costa del Sol Hospital**.
+Apache 2.0, see `LICENSE.md`. The Orbbec SDK keeps its own terms.
